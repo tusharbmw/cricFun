@@ -1,4 +1,4 @@
-# CricBet
+# CricFun
 Using Django to make a app to be used/tested with friends
 
 #setup steps:
