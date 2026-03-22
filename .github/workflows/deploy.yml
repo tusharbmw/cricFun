@@ -1,0 +1,49 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Only runs after both CI checks pass
+    needs: []
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            cd /home/opc/cricfun
+
+            echo "--- Pulling latest code ---"
+            git pull origin main
+
+            echo "--- Installing Python dependencies ---"
+            source venv/bin/activate
+            pip install -q -r backend/requirements/base.txt
+
+            echo "--- Building frontend ---"
+            cd frontend
+            npm ci --silent
+            npm run build
+            cd ..
+
+            echo "--- Running migrations ---"
+            DJANGO_SETTINGS_MODULE=config.settings.production \
+              python backend/manage.py migrate --noinput
+
+            echo "--- Collecting static files ---"
+            DJANGO_SETTINGS_MODULE=config.settings.production \
+              python backend/manage.py collectstatic --noinput
+
+            echo "--- Restarting services ---"
+            sudo systemctl restart cricfun cricfun-celery cricfun-celery-beat
+
+            echo "--- Deploy complete ---"
+            sudo systemctl status cricfun --no-pager
