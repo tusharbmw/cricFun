@@ -1,0 +1,117 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block content %}
+
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# Season Management Panel                                               #}
+{# ══════════════════════════════════════════════════════════════════════ #}
+<div class="module" style="margin-bottom: 20px; padding: 16px;">
+  <h2 style="margin-top: 0;">🔧 Season Management</h2>
+
+  {# ── CricAPI Budget ──────────────────────────────────────────────── #}
+  <div style="
+    display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 14px; border-radius: 4px; margin-bottom: 14px;
+    {% if api_hits.remaining <= 3 %}
+      background: #fdecea; border: 1px solid #f5c6cb; color: #721c24;
+    {% elif api_hits.remaining <= 10 %}
+      background: #fff3cd; border: 1px solid #ffc107; color: #856404;
+    {% else %}
+      background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32;
+    {% endif %}
+  ">
+    <strong>🏏 CricAPI calls today:</strong>
+    <span>{{ api_hits.used }} / {{ api_hits.limit }} used &nbsp;·&nbsp; <strong>{{ api_hits.remaining }} remaining</strong></span>
+    {% if api_hits.remaining <= 3 %}
+      <strong>⚠ Circuit breaker active — all API calls blocked</strong>
+    {% elif api_hits.remaining <= 10 %}
+      <span>⚠ Low budget — polling interval widened automatically</span>
+    {% endif %}
+  </div>
+
+  {# ── Scheduled Tasks ────────────────────────────────────────────── #}
+  <table style="border-collapse: collapse; margin-bottom: 16px; font-size: 13px; width: 100%; max-width: 620px;">
+    <thead>
+      <tr style="border-bottom: 1px solid #ddd;">
+        <th style="text-align: left; padding: 6px 10px; color: #666;">Task</th>
+        <th style="text-align: left; padding: 6px 10px; color: #666;">Schedule</th>
+        <th style="text-align: left; padding: 6px 10px; color: #666;">Next run (UTC)</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      {# Fetch upcoming matches — 6 AM daily #}
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 6px 10px;">📥 Fetch upcoming matches</td>
+        <td style="padding: 6px 10px; color: #555;">Daily at 06:00 UTC</td>
+        <td style="padding: 6px 10px;">
+          <strong>{{ next_fetch|date:"D d M, H:i" }}</strong>
+          <span style="color: #888; font-size: 12px;">
+            (in {{ next_fetch_in_h }}h {{ next_fetch_in_m }}m)
+          </span>
+        </td>
+      </tr>
+
+      {# Live score check — gated by Redis timestamp #}
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 6px 10px;">🔄 Live score API poll</td>
+        <td style="padding: 6px 10px; color: #555;">Beat every 60 s; interval set by budget</td>
+        <td style="padding: 6px 10px;">
+          {% if next_live_check %}
+            <strong>{{ next_live_check|date:"H:i:s" }}</strong>
+            <span style="color: #888; font-size: 12px;">
+              (in {{ next_live_check_in }}s)
+            </span>
+          {% else %}
+            <span style="color: #888; font-style: italic;">No live matches — gate inactive</span>
+          {% endif %}
+        </td>
+      </tr>
+
+      {# TBD→IP status check — every 10 min, no API call #}
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 6px 10px;">⏱ TBD→IP status check</td>
+        <td style="padding: 6px 10px; color: #555;">Every 10 min (DB only, no API call)</td>
+        <td style="padding: 6px 10px; color: #888; font-style: italic;">~every 10 min</td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  {# ── Action Buttons ──────────────────────────────────────────────── #}
+  <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+
+    {# 1. Fetch upcoming matches #}
+    <form method="post" action="../fill-matches/">
+      {% csrf_token %}
+      <button type="submit" class="button default"
+        title="Call CricAPI to fetch tournament schedule and add any new matches (costs 1 API call)">
+        📥 Fetch Upcoming Matches
+      </button>
+    </form>
+
+    {# 2. Force status check #}
+    <form method="post" action="../status-check/">
+      {% csrf_token %}
+      <button type="submit" class="button"
+        title="Bust caches, transition TBD→IP for started matches, poll live scores">
+        🔄 Force Status Check
+      </button>
+    </form>
+
+    {# 3. Reset season (destructive) #}
+    <a href="../reset-season/"
+       class="button"
+       style="background:#ba2121; color:#fff; text-decoration:none; padding: 6px 14px; border-radius: 4px;"
+       title="Delete all matches and selections — user accounts are kept">
+      🗑 Reset Season
+    </a>
+
+  </div>
+</div>
+
+{# ── Original settings form below ─────────────────────────────────── #}
+{{ block.super }}
+
+{% endblock %}

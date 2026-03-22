@@ -1,0 +1,30 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="module" style="max-width: 540px; padding: 24px;">
+
+  <h1 style="color: #ba2121;">⚠ Confirm Season Reset</h1>
+
+  <p>This will permanently delete:</p>
+  <ul style="font-size: 15px; line-height: 1.8;">
+    <li><strong>{{ match_count }}</strong> match{{ match_count|pluralize }}</li>
+    <li><strong>{{ selection_count }}</strong> selection{{ selection_count|pluralize }} (picks)</li>
+  </ul>
+  <p><strong>User accounts and passwords are NOT affected.</strong></p>
+  <p style="color: #ba2121; font-weight: bold;">This action cannot be undone. Take a DB backup first if needed.</p>
+
+  <div style="display: flex; gap: 12px; margin-top: 20px;">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="confirm" value="yes">
+      <button type="submit" class="button"
+        style="background: #ba2121; color: #fff; padding: 8px 20px;">
+        Yes, delete everything and reset season
+      </button>
+    </form>
+    <a href="../" class="button" style="padding: 8px 20px;">Cancel</a>
+  </div>
+
+</div>
+{% endblock %}

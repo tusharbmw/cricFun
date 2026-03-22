@@ -1,46 +1,158 @@
 # CricFun
-Using Django to make a app to be used/tested with friends
 
-#setup steps:
-update db info in cricBet settings.py
+A cricket prediction game for friends — pick match winners, apply powerups, and compete on the leaderboard.
 
-to update changes use
+## Tech Stack
 
-python manage.py makemigrations
+| Layer | Technology |
+|---|---|
+| Backend | Django 5.2 LTS + Django REST Framework 3.17 |
+| Frontend | React 18 + Vite + Tailwind CSS v4 |
+| Database | Oracle DB |
+| Cache / Sessions | Redis |
+| Task Queue | Celery + Celery Beat |
+| Auth | JWT (djangorestframework-simplejwt) |
+| Server | Gunicorn + Nginx |
 
-python manage.py migrate -- to create db
+## Project Structure
 
-To run on server:
-python manage.py runserver 0.0.0.0:5000 &
+```
+cricFun/
+├── backend/          # Django REST API
+│   ├── apps/
+│   │   ├── picks/        # Pick placement, powerups
+│   │   ├── leaderboard/  # Rankings and scores
+│   │   ├── matches/      # Match data + Cricket API tasks
+│   │   └── core/         # Shared utilities
+│   ├── config/           # Settings (base / local / production)
+│   ├── teams/            # Team and Match models
+│   └── manage.py
+├── frontend/         # React SPA
+│   └── src/
+│       ├── api/          # Axios API clients
+│       ├── components/   # UI components (Card, Spinner, Badge...)
+│       ├── features/     # MatchCard
+│       ├── hooks/        # useCountdown
+│       ├── pages/        # Dashboard, Schedule, Results, Leaderboard, Profile, Rules
+│       └── store/        # Zustand auth store
+├── .env.example
+└── projectplan.md    # Full v2 migration plan with phase status
+```
 
+## Local Development
 
+### Prerequisites
 
-open firewall: 
+- Python 3.12
+- Node.js 20+
+- Oracle DB (dev instance)
+- Redis — either via Docker or Homebrew:
 
-sudo iptables --list --line-numbers
+```bash
+# Option A — Docker (recommended, no install needed)
+docker compose up -d        # starts Redis on port 6379
 
-iptables -P INPUT ACCEPT
+# Option B — Homebrew
+brew install redis && brew services start redis
+```
 
-iptables -P OUTPUT ACCEPT
+### Backend
 
-iptables -P FORWARD ACCEPT
+```bash
+cd backend
+source ../venv/bin/activate
+DJANGO_SETTINGS_MODULE=config.settings.local python manage.py runserver
+```
 
-iptables -F
+### Frontend
 
-To renew certificate
+```bash
+cd frontend
+npm install
+npm run dev       # starts at http://localhost:5173
+                  # /api/* proxied to http://127.0.0.1:8000
+```
+
+### Celery (optional — needed for live score updates)
+
+```bash
+cd backend
+celery -A config worker -l info      # in one terminal
+celery -A config beat -l info        # in another terminal
+```
+
+## Environment Variables
+
+Copy `.env.example` to `.env` in the project root and fill in values:
+
+```
+SECRET_KEY=...
+DB_NAME=...
+DB_USER=...
+DB_PASSWORD=...
+DB_HOST=...
+DB_PORT=1521
+CRICKET_API_KEY=...
+REDIS_URL=redis://localhost:6379/0
+```
+
+## API
+
+- Swagger UI: `http://localhost:8000/api/v1/docs/`
+- ReDoc:      `http://localhost:8000/api/v1/redoc/`
+- OpenAPI:    `http://localhost:8000/api/v1/schema/`
+
+## Production
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full step-by-step guide covering:
+- System dependencies (Redis, Python 3.12, Node.js)
+- Gunicorn systemd service setup
+- Celery + Celery Beat services
+- Nginx config (SPA routing + API proxy)
+- SELinux settings for Oracle Linux
+- SSL renewal and routine update procedure
+
+Key commands:
+
+```bash
+# Build frontend
+cd frontend && npm run build
+
+# Collect static files
+cd backend && python manage.py collectstatic --noinput
+
+# Run migrations
+python manage.py migrate
+
+# Renew SSL certificate
 sudo certbot renew --nginx
 
-Start gunicorn (from /home/opc/cricBet)
-
-nohup bin/gunicorn_start &
-
-For linux you will may have to so that nginx can access reverse proxy
-sudo setsebool -P httpd_can_network_connect 1
-
-And
-sudo semanage permissive -a httpd_t
-
-
-Oracle: 
-Need to grant access to tablespace to user
+# Oracle: grant tablespace if needed
 GRANT UNLIMITED TABLESPACE TO user;
+```
+
+## Features
+
+- **Match schedule** — pick a team to win before the pick window closes; countdown timer per match
+- **Powerups** — Hidden (hide your pick), Fake (show wrong pick), No-Neg (no negative points if wrong)
+- **Smart polling** — live match endpoint polled at 30s when live, 5min if match starts within 2hrs, never otherwise
+- **Leaderboard** — real-time standings with win/loss/skips and points
+- **Results** — completed matches with all user picks visible
+- **Rules** — full scoring, powerup, and tiebreaker rules
+
+## Testing
+
+```bash
+cd backend
+pytest apps/picks/tests.py apps/leaderboard/tests.py -v
+# 25 tests, 25 passing
+```
+
+Test settings use SQLite in-memory (`config.settings.test`) — no Oracle needed to run tests.
+
+## Status
+
+Phases 0–5 complete (backend API, React frontend, tests, code quality).
+All packages on latest compatible versions — Django 5.2.12 LTS.
+Next: Phase 6 (Docker) → Phase 7 (production deployment).
+See [projectplan.md](projectplan.md) for detailed progress.

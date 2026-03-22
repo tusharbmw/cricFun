@@ -1,0 +1,27 @@
+# Core Django
+Django==5.2.12
+python-dotenv==1.2.2
+
+# Database
+oracledb==3.4.2
+
+# Django REST Framework
+djangorestframework==3.17.0
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.9.0
+drf-spectacular==0.29.0
+django-filter==25.2
+
+# Authentication
+django-allauth==65.15.0
+
+# Utilities
+pillow==12.1.1
+requests==2.32.5
+
+# Async tasks
+celery[redis]==5.6.2
+django-redis==6.0.0
+
+# Production server
+gunicorn==25.1.0

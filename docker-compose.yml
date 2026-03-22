@@ -1,0 +1,18 @@
+# Local development only — spins up Redis so you don't need to install it manually.
+# The Django backend and frontend still run natively (they need Oracle DB access).
+#
+# Usage:
+#   docker compose up -d        # start Redis in background
+#   docker compose down         # stop and remove containers
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:

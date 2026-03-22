@@ -33,14 +33,15 @@ ENV/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-/media
-/staticfiles
-/static
+media/
+staticfiles/
+staticroot/
 
 # Environment variables
 .env
 .env.local
 .env.*.local
+!.env.example
 
 # IDE
 .vscode/
@@ -53,3 +54,38 @@ db.sqlite3-journal
 .DS_Store
 Thumbs.db
 
+# Plans / internal docs
+projectplan.md
+.claudeignore
+CRICFUN_HOMEPAGE_IMPLEMENTATION_PROMPT.md
+
+
+# Node.js / Frontend
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Docker
+.docker/
+
+# Coverage reports
+.coverage
+htmlcov/
+.pytest_cache/
+coverage.xml
+
+# mypy
+.mypy_cache/
+
+# ruff
+.ruff_cache/
+
+#docs
+docs/DEPLOYMENT.md

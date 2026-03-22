@@ -1,0 +1,14 @@
+-r base.txt
+
+# Dev server with SSL support
+django-sslserver==0.22
+
+# Code quality
+ruff==0.15.6
+black==26.3.1
+
+# Testing
+pytest==9.0.2
+pytest-django==4.12.0
+pytest-cov==7.0.0
+factory-boy==3.3.3
