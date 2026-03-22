@@ -43,6 +43,9 @@ jobs:
               python backend/manage.py collectstatic --noinput
 
             echo "--- Restarting services ---"
+            # Requires passwordless sudo for systemctl restart on these services.
+            # On the server run once: sudo visudo
+            # Add: opc ALL=(ALL) NOPASSWD: /bin/systemctl restart cricfun, /bin/systemctl restart cricfun-celery, /bin/systemctl restart cricfun-celery-beat
             sudo systemctl restart cricfun cricfun-celery cricfun-celery-beat
 
             echo "--- Deploy complete ---"
