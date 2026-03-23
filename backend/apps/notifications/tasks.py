@@ -89,3 +89,30 @@ def notify_rank_change(new_leader, match_id, prev_leader=None):
         'notify_rank_change: %d in-app + %d push notifications sent (%s took rank 1)',
         len(users), sent, new_leader,
     )
+
+
+@shared_task
+def send_custom_notification(title, message, url, user_ids):
+    """
+    Send an admin-authored custom notification to a list of users.
+    Creates in-app Notification records and sends Web Push to subscribers.
+    """
+    from django.contrib.auth.models import User
+    from apps.notifications.models import Notification, PushSubscription
+    from apps.notifications.utils import send_push_notification
+
+    users = list(User.objects.filter(id__in=user_ids, is_active=True))
+
+    Notification.objects.bulk_create([
+        Notification(user=u, type='custom', message=message, meta={'title': title, 'url': url or '/'})
+        for u in users
+    ])
+
+    subs = PushSubscription.objects.filter(user__in=users).select_related('user')
+    sent = 0
+    for sub in subs:
+        if send_push_notification(sub, title=title, body=message, url=url or '/'):
+            sent += 1
+
+    logger.info('send_custom_notification: %d in-app + %d push sent', len(users), sent)
+    return {'in_app': len(users), 'push': sent}

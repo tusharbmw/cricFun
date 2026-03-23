@@ -68,7 +68,9 @@ function NotificationDropdown({ onClose }) {
           notifications.slice(0, 10).map(n => {
             const url = n.type === 'pick_result'
               ? `/results${n.meta?.match_id ? `?match=${n.meta.match_id}` : ''}`
-              : '/standings'
+              : n.type === 'custom'
+                ? (n.meta?.url ?? '/')
+                : '/standings'
             return (
               <div key={n.id} className={`flex items-start gap-2 px-4 py-3 group ${n.is_read ? '' : 'bg-blue-50/50'}`}>
                 <Link

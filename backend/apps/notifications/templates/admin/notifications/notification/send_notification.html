@@ -1,0 +1,95 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Send Notification | {{ site_title|default:"Django site admin" }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a> &rsaquo;
+  <a href="{% url 'admin:notifications_notification_changelist' %}">Notifications</a> &rsaquo;
+  Send Notification
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Send Notification</h1>
+
+<p style="margin-bottom: 1em; color: #666;">
+  Active users: <strong>{{ active_count }}</strong> &nbsp;|&nbsp;
+  Push-enabled users: <strong>{{ push_count }}</strong>
+  (<a href="{% url 'admin:notifications_pushsubscription_changelist' %}">view list</a>)
+</p>
+
+{% if messages %}
+  {% for m in messages %}
+    <p class="{% if m.tags %}{{ m.tags }}{% endif %}" style="padding: .8em; background: #dfd; border: 1px solid #9d9; margin-bottom: 1em;">{{ m }}</p>
+  {% endfor %}
+{% endif %}
+
+<form method="post" style="max-width: 600px;">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <p class="errornote">{{ form.non_field_errors }}</p>
+  {% endif %}
+
+  <fieldset class="module aligned">
+
+    <div class="form-row">
+      <label>Recipients:</label>
+      <div>
+        {{ form.recipients }}
+        {% if form.recipients.errors %}<p class="errornote">{{ form.recipients.errors }}</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="form-row" id="specific-users-row" style="display:none;">
+      <label>Users:</label>
+      <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: .5em; border-radius: 4px;">
+        {{ form.users }}
+      </div>
+      <p class="help">{{ form.users.help_text }}</p>
+      {% if form.users.errors %}<p class="errornote">{{ form.users.errors }}</p>{% endif %}
+    </div>
+
+    <div class="form-row">
+      <label for="{{ form.title.id_for_label }}">Title:</label>
+      {{ form.title }}
+      {% if form.title.errors %}<p class="errornote">{{ form.title.errors }}</p>{% endif %}
+    </div>
+
+    <div class="form-row">
+      <label for="{{ form.message.id_for_label }}">Message:</label>
+      {{ form.message }}
+      {% if form.message.errors %}<p class="errornote">{{ form.message.errors }}</p>{% endif %}
+    </div>
+
+    <div class="form-row">
+      <label for="{{ form.url.id_for_label }}">URL:</label>
+      {{ form.url }}
+      <p class="help">{{ form.url.help_text }}</p>
+      {% if form.url.errors %}<p class="errornote">{{ form.url.errors }}</p>{% endif %}
+    </div>
+
+  </fieldset>
+
+  <div class="submit-row">
+    <input type="submit" value="Send Notification" class="default" />
+    <a href="{% url 'admin:notifications_notification_changelist' %}" style="margin-left: 1em;">Cancel</a>
+  </div>
+</form>
+
+<script>
+  (function () {
+    function toggleSpecificUsers() {
+      var selected = document.querySelector('input[name="recipients"]:checked');
+      var row = document.getElementById('specific-users-row');
+      if (row) row.style.display = (selected && selected.value === 'specific') ? 'block' : 'none';
+    }
+    document.querySelectorAll('input[name="recipients"]').forEach(function (el) {
+      el.addEventListener('change', toggleSpecificUsers);
+    });
+    toggleSpecificUsers();
+  })();
+</script>
+{% endblock %}
