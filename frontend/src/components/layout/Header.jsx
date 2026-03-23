@@ -37,7 +37,7 @@ function NotificationDropdown({ onClose }) {
 
   return (
     <div
-      className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-sm bg-white rounded-xl border border-gray-100 shadow-lg z-50 overflow-hidden"
+      className="absolute right-0 top-full mt-2 w-64 sm:w-80 bg-white rounded-xl border border-gray-100 shadow-lg z-50 overflow-hidden"
       onClick={e => e.stopPropagation()}
     >
       {/* Header */}
