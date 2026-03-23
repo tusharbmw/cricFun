@@ -2,6 +2,7 @@
 Notification Celery tasks.
 """
 import logging
+from datetime import datetime, timezone, timedelta
 
 from celery import shared_task
 
@@ -116,3 +117,62 @@ def send_custom_notification(title, message, url, user_ids):
 
     logger.info('send_custom_notification: %d in-app + %d push sent', len(users), sent)
     return {'in_app': len(users), 'push': sent}
+
+
+@shared_task
+def send_pick_reminders():
+    """
+    Runs every 30 min via Beat.
+    Sends a Web Push to users who haven't picked for matches closing in ~24h or ~1h.
+    Redis cache prevents duplicate sends within each window.
+    No in-app notification — the sticky dropdown notice already covers that.
+    """
+    from django.core.cache import cache
+    from teams.models import Match, Selection
+    from apps.notifications.models import PushSubscription
+    from apps.notifications.utils import send_push_notification
+
+    now = datetime.now(timezone.utc)
+
+    windows = [
+        ('24h', now + timedelta(hours=23),   now + timedelta(hours=25),   '24 hrs'),
+        ('1h',  now + timedelta(minutes=50), now + timedelta(minutes=70), '1 hr'),
+    ]
+
+    total_sent = 0
+    for window_key, start, end, label in windows:
+        matches = (Match.objects
+                   .filter(result='TBD', datetime__gte=start, datetime__lte=end)
+                   .select_related('team1', 'team2'))
+
+        for match in matches:
+            picked_user_ids = set(
+                Selection.objects.filter(match=match).values_list('user_id', flat=True)
+            )
+
+            subs = (PushSubscription.objects
+                    .filter(user__is_active=True)
+                    .exclude(user_id__in=picked_user_ids)
+                    .select_related('user'))
+
+            for sub in subs:
+                cache_key = f'pick_reminder_{window_key}_{match.id}_{sub.user_id}'
+                if cache.get(cache_key):
+                    continue
+
+                t1 = match.team1.name if match.team1 else '?'
+                t2 = match.team2.name if match.team2 else '?'
+                body = f'{t1} vs {t2} — pick locks in {label}!'
+
+                if send_push_notification(
+                    sub, title='⏰ Pick Reminder', body=body, url='/schedule'
+                ):
+                    cache.set(cache_key, 1, timeout=3 * 3600)
+                    total_sent += 1
+                    logger.info(
+                        'Pick reminder (%s) sent to user %s for match %s',
+                        window_key, sub.user_id, match.id,
+                    )
+
+    logger.info('send_pick_reminders: %d push notifications sent', total_sent)
+    return {'sent': total_sent}

@@ -52,4 +52,11 @@ app.conf.beat_schedule = {
         'task': 'apps.core.tasks.log_api_usage_stats',
         'schedule': crontab(hour=23, minute=55),
     },
+
+    # Pick reminders: push alert at 24h and 1h before match start.
+    # Runs every 30 min; Redis cache prevents duplicate sends.
+    'send-pick-reminders': {
+        'task': 'apps.notifications.tasks.send_pick_reminders',
+        'schedule': 1800.0,  # every 30 minutes
+    },
 }
