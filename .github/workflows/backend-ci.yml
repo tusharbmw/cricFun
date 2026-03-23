@@ -2,14 +2,10 @@ name: Backend CI
 
 on:
   push:
-    branches: [devel, main]
+    branches: [devel]
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'backend/**'
 
 jobs:
   test:
