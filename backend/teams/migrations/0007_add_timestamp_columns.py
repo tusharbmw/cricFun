@@ -6,32 +6,35 @@ This migration adds them for real on both Oracle and SQLite.
 from django.db import migrations
 
 
+def _existing_columns(connection, table):
+    with connection.cursor() as cursor:
+        return {col.name for col in connection.introspection.get_table_description(cursor, table)}
+
+
 def add_timestamp_columns(apps, schema_editor):
-    vendor = schema_editor.connection.vendor
-    if vendor == 'oracle':
-        schema_editor.execute(
-            "ALTER TABLE TEAMS_MATCH ADD ("
-            "CREATED_AT TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-            "UPDATED_AT TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL)"
-        )
-        schema_editor.execute(
-            "ALTER TABLE TEAMS_SELECTION ADD ("
-            "CREATED_AT TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-            "UPDATED_AT TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL)"
-        )
-    elif vendor == 'sqlite':
-        schema_editor.execute(
-            'ALTER TABLE "teams_match" ADD COLUMN "created_at" datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
-        )
-        schema_editor.execute(
-            'ALTER TABLE "teams_match" ADD COLUMN "updated_at" datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
-        )
-        schema_editor.execute(
-            'ALTER TABLE "teams_selection" ADD COLUMN "created_at" datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
-        )
-        schema_editor.execute(
-            'ALTER TABLE "teams_selection" ADD COLUMN "updated_at" datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
-        )
+    conn = schema_editor.connection
+    vendor = conn.vendor
+
+    for table in ('teams_match', 'teams_selection'):
+        existing = _existing_columns(conn, table)
+        if vendor == 'oracle':
+            tbl = table.upper()
+            cols = []
+            if 'created_at' not in existing:
+                cols.append('CREATED_AT TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL')
+            if 'updated_at' not in existing:
+                cols.append('UPDATED_AT TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL')
+            if cols:
+                schema_editor.execute(f'ALTER TABLE {tbl} ADD ({", ".join(cols)})')
+        elif vendor == 'sqlite':
+            if 'created_at' not in existing:
+                schema_editor.execute(
+                    f'ALTER TABLE "{table}" ADD COLUMN "created_at" datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
+                )
+            if 'updated_at' not in existing:
+                schema_editor.execute(
+                    f'ALTER TABLE "{table}" ADD COLUMN "updated_at" datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
+                )
 
 
 def remove_timestamp_columns(apps, schema_editor):
