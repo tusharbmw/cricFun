@@ -141,8 +141,8 @@ class Migration(migrations.Migration):
             ],
             database_operations=[
                 migrations.RunSQL(
-                    sql='ALTER TABLE TEAMS_MATCH ADD CONSTRAINT TEAMS_MATCH_MATCH_ID_UN UNIQUE (MATCH_ID)',
-                    reverse_sql='ALTER TABLE TEAMS_MATCH DROP CONSTRAINT TEAMS_MATCH_MATCH_ID_UN',
+                    sql='CREATE UNIQUE INDEX teams_match_match_id_ux ON teams_match (match_id)',
+                    reverse_sql='DROP INDEX teams_match_match_id_ux',
                 ),
             ],
         ),
