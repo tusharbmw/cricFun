@@ -15,7 +15,7 @@ ROOT_DIR = BASE_DIR.parent
 load_dotenv(ROOT_DIR / '.env')
 
 # SECURITY
-SECRET_KEY = os.environ['SECRET_KEY']
+SECRET_KEY = os.environ.get('SECRET_KEY', 'ci-insecure-placeholder-not-for-production')
 
 # Application definition
 INSTALLED_APPS = [
