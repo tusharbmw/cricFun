@@ -176,13 +176,13 @@ def get_series_info(tournament_id=None) -> list:
             description = match['name'].split(',')[comma_count * -1 if comma_count else 0].strip()
             venue        = match.get('venue', '').split(',')[-1].strip()
 
-            status = match.get('status', '')
-            if status == 'Match not started':
+            if not match.get('matchStarted', False):
                 result = 'TBD'
-            elif 'won' in status and match.get('matchEnded'):
+            elif match.get('matchEnded', False):
+                status = match.get('status', '')
                 result = 'team1' if teams[0] in status else 'team2'
             else:
-                result = 'NR'
+                result = 'IP'
 
             matches.append({
                 'match_id':    match['id'],
