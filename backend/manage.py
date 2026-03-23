@@ -1,13 +1,21 @@
 #!/usr/bin/env python
 """Django's command-line utility for administrative tasks."""
 import os
+import re
 import sys
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load .env before setdefault so DJANGO_SETTINGS_MODULE in .env takes effect.
+# Read DJANGO_SETTINGS_MODULE from .env before setdefault, without requiring
+# the dotenv package to be installed at this point.
 # Production .env sets: DJANGO_SETTINGS_MODULE=config.settings.production
-load_dotenv(Path(__file__).resolve().parent.parent / '.env')
+_env_file = Path(__file__).resolve().parent.parent / '.env'
+if _env_file.exists():
+    with open(_env_file) as _f:
+        for _line in _f:
+            _m = re.match(r'^DJANGO_SETTINGS_MODULE\s*=\s*(\S+)', _line)
+            if _m:
+                os.environ.setdefault('DJANGO_SETTINGS_MODULE', _m.group(1))
+                break
 
 
 def main():
