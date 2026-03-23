@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
+import { Link } from 'react-router-dom'
 import { matchesAPI } from '@/api/matches'
 import { picksAPI } from '@/api/picks'
 import Spinner from '@/components/ui/Spinner'
@@ -262,6 +263,13 @@ function MatchPickRow({ match, existingPick, stats }) {
             Change pick
           </button>
         )}
+
+        {/* Footer link */}
+        <div className="mt-3">
+          <Link to={`/matches/${match.id}`} className="text-xs text-blue-600 hover:underline">
+            View details →
+          </Link>
+        </div>
 
         {/* PowerPlay buttons */}
         {existingPick && !powerupsDisabled && !isLocked && !showChangePick && (
