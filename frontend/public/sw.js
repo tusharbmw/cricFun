@@ -1,5 +1,5 @@
-// CricFun Service Worker
-// Handles Web Push events and notification clicks.
+/* global clients */
+// CricFun Service Worker — handles Web Push events and notification clicks.
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', event => event.waitUntil(clients.claim()))
@@ -7,7 +7,7 @@ self.addEventListener('activate', event => event.waitUntil(clients.claim()))
 // ── Push received ──────────────────────────────────────────────────────────
 self.addEventListener('push', event => {
   let data = {}
-  try { data = event.data?.json() ?? {} } catch {}
+  try { data = event.data?.json() ?? {} } catch { /* ignore malformed payload */ }
 
   const title   = data.title ?? 'CricFun'
   const options = {
