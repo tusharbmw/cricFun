@@ -5,7 +5,7 @@ from django.db import models
 class PushSubscription(models.Model):
     """Stores a browser Web Push subscription for a user."""
     user     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='push_subscriptions')
-    endpoint = models.TextField(unique=True)
+    endpoint = models.CharField(max_length=512, unique=True)
     p256dh   = models.TextField()
     auth     = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
