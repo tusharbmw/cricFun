@@ -13,8 +13,8 @@ def fix_timestamp_types(apps, schema_editor):
     for table in ('TEAMS_MATCH', 'TEAMS_SELECTION'):
         schema_editor.execute(
             f'ALTER TABLE {table} MODIFY ('
-            f'CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, '
-            f'UPDATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)'
+            f'CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP, '
+            f'UPDATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP)'
         )
 
 
