@@ -162,6 +162,18 @@ export default function Profile() {
         </div>
       )}
 
+      {/* Admin panel link — staff only */}
+      {user?.is_staff && (
+        <a
+          href="/admin/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-outline w-full"
+        >
+          Admin panel ↗
+        </a>
+      )}
+
       {/* Logout */}
       <button
         onClick={() => logout()}
