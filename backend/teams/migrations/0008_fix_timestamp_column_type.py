@@ -11,10 +11,13 @@ def fix_timestamp_types(apps, schema_editor):
     if schema_editor.connection.vendor != 'oracle':
         return
     for table in ('TEAMS_MATCH', 'TEAMS_SELECTION'):
+        # Can't change datatype with data present — drop and re-add with correct type.
+        # Existing rows get DEFAULT (current timestamp), which is fine.
+        schema_editor.execute(f'ALTER TABLE {table} DROP (CREATED_AT, UPDATED_AT)')
         schema_editor.execute(
-            f'ALTER TABLE {table} MODIFY ('
-            f'CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP, '
-            f'UPDATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP)'
+            f'ALTER TABLE {table} ADD ('
+            f'CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, '
+            f'UPDATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL)'
         )
 
 
