@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import Notification
+from .models import Notification, PushSubscription
+
+
+@admin.register(PushSubscription)
+class PushSubscriptionAdmin(admin.ModelAdmin):
+    list_display  = ['user', 'created_at']
+    list_filter   = ['user']
+    ordering      = ['-created_at']
+    readonly_fields = ['user', 'endpoint', 'p256dh', 'auth', 'created_at']
 
 
 @admin.register(Notification)

@@ -188,6 +188,12 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULER = 'celery.beat:PersistentScheduler'
 
+# Web Push (VAPID)
+# Generate keys once: python manage.py generate_vapid_keys
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_PUBLIC_KEY  = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_ADMIN_EMAIL = os.environ.get('VAPID_ADMIN_EMAIL', '')
+
 # Cricket API
 CRICKET_API_KEY = os.environ.get('CRIC_API_KEY', '')
 CRICKET_TOURNAMENT_ID = os.environ.get('CRIC_TOURNAMENT_ID', '')
