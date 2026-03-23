@@ -21,6 +21,7 @@ class Notification(models.Model):
     TYPE_CHOICES = [
         ('rank_change',  'Rank Change'),
         ('pick_result',  'Pick Result'),
+        ('custom',       'Custom'),
     ]
 
     user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
