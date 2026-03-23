@@ -83,26 +83,32 @@ class Migration(migrations.Migration):
             ],
             database_operations=[],
         ),
-        # Fix Match ForeignKey related_names
-        migrations.AlterField(
-            model_name='match',
-            name='team1',
-            field=models.ForeignKey(
-                null=True,
-                on_delete=django.db.models.deletion.SET_NULL,
-                related_name='home_matches',
-                to='teams.team',
-            ),
-        ),
-        migrations.AlterField(
-            model_name='match',
-            name='team2',
-            field=models.ForeignKey(
-                null=True,
-                on_delete=django.db.models.deletion.SET_NULL,
-                related_name='away_matches',
-                to='teams.team',
-            ),
+        # Fix Match ForeignKey related_names — related_name is Python-only, null stays the same;
+        # Oracle rejects ALTER when nullability doesn't change, so skip DB operation.
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AlterField(
+                    model_name='match',
+                    name='team1',
+                    field=models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name='home_matches',
+                        to='teams.team',
+                    ),
+                ),
+                migrations.AlterField(
+                    model_name='match',
+                    name='team2',
+                    field=models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name='away_matches',
+                        to='teams.team',
+                    ),
+                ),
+            ],
+            database_operations=[],
         ),
         # Add db_index to Match.result and Match.datetime
         migrations.AlterField(
@@ -123,11 +129,22 @@ class Migration(migrations.Migration):
             name='datetime',
             field=models.DateTimeField(db_index=True),
         ),
-        # Fix Match.match_id unique constraint
-        migrations.AlterField(
-            model_name='match',
-            name='match_id',
-            field=models.CharField(blank=True, max_length=50, null=True, unique=True),
+        # Fix Match.match_id unique constraint — column already exists as nullable,
+        # so only apply the unique constraint in the DB (state update handles the rest).
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AlterField(
+                    model_name='match',
+                    name='match_id',
+                    field=models.CharField(blank=True, max_length=50, null=True, unique=True),
+                ),
+            ],
+            database_operations=[
+                migrations.RunSQL(
+                    sql='ALTER TABLE TEAMS_MATCH ADD CONSTRAINT TEAMS_MATCH_MATCH_ID_UN UNIQUE (MATCH_ID)',
+                    reverse_sql='ALTER TABLE TEAMS_MATCH DROP CONSTRAINT TEAMS_MATCH_MATCH_ID_UN',
+                ),
+            ],
         ),
         # Fix Selection ForeignKeys (remove null on user, cascade deletes)
         migrations.AlterField(
