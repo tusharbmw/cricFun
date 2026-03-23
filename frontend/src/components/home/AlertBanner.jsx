@@ -39,7 +39,7 @@ export default function AlertBanner({ missingPicks, urgentMissing = 0 }) {
             {missingPicks} match{missingPicks !== 1 ? 'es' : ''} available for picks
           </p>
           <p className="text-xs mt-0.5" style={{ color: '#1d4ed8' }}>
-            All matches lock &gt;24 hrs away
+            Picks done for all matches in next 24 hrs
           </p>
         </div>
       </div>
