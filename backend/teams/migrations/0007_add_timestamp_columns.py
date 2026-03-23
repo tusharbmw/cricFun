@@ -21,9 +21,9 @@ def add_timestamp_columns(apps, schema_editor):
             tbl = table.upper()
             cols = []
             if 'created_at' not in existing:
-                cols.append('CREATED_AT TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL')
+                cols.append('CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL')
             if 'updated_at' not in existing:
-                cols.append('UPDATED_AT TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL')
+                cols.append('UPDATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL')
             if cols:
                 schema_editor.execute(f'ALTER TABLE {tbl} ADD ({", ".join(cols)})')
         elif vendor == 'sqlite':
