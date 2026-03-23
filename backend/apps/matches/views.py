@@ -46,10 +46,18 @@ class MatchViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request):
-        """Upcoming matches (result=TBD), next 10."""
-        qs = self.get_queryset().filter(result='TBD')[:10]
-        serializer = self.get_serializer(qs, many=True)
-        return Response(serializer.data)
+        """Upcoming matches (result=TBD), paginated by offset/limit."""
+        limit  = min(int(request.query_params.get('limit', 10)), 50)
+        offset = max(int(request.query_params.get('offset', 0)), 0)
+        qs     = self.get_queryset().filter(result='TBD')
+        total  = qs.count()
+        page   = qs[offset:offset + limit]
+        serializer = self.get_serializer(page, many=True)
+        return Response({
+            'results':  serializer.data,
+            'count':    total,
+            'has_more': (offset + limit) < total,
+        })
 
     @action(detail=False, methods=['get'])
     def completed(self, request):

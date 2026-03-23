@@ -39,6 +39,7 @@ def calculate_scores(upto_match_id=None):
         scores[u.username] = {
             'user_id':      u.id,
             'username':     u.username,
+            'display_name': u.get_full_name() or u.username,
             'won':          0,
             'lost':         0,
             'skipped':      0,

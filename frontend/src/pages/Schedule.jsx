@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { matchesAPI } from '@/api/matches'
 import { picksAPI } from '@/api/picks'
@@ -294,10 +294,37 @@ function MatchPickRow({ match, existingPick, stats }) {
 }
 
 export default function Schedule() {
-  const { data: upcoming, isLoading } = useQuery({
+  const sentinelRef = useRef(null)
+
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['matches', 'upcoming'],
-    queryFn: () => matchesAPI.upcoming().then(r => r.data),
+    queryFn: ({ pageParam = 0 }) =>
+      matchesAPI.upcoming({ offset: pageParam, limit: 10 }).then(r => r.data),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.has_more ? allPages.length * 10 : undefined,
   })
+
+  const upcoming = data?.pages.flatMap(p => p.results) ?? []
+
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage()
+      },
+      { threshold: 0.1 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
   const { data: activePicks } = useQuery({
     queryKey: ['picks', 'active'],
     queryFn: () => picksAPI.active().then(r => r.data),
@@ -338,7 +365,7 @@ export default function Schedule() {
         </div>
       )}
 
-      {!upcoming?.length ? (
+      {!upcoming.length && !isLoading ? (
         <div className="bg-white border border-gray-100 rounded-xl">
           <div className="text-center text-gray-400 py-10">No upcoming matches.</div>
         </div>
@@ -352,6 +379,10 @@ export default function Schedule() {
           />
         ))
       )}
+
+      <div ref={sentinelRef} className="flex items-center justify-center py-4">
+        {isFetchingNextPage && <Spinner />}
+      </div>
     </div>
   )
 }

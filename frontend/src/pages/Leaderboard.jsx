@@ -132,7 +132,7 @@ export default function Leaderboard() {
                     </td>
                     <td>
                       <span className={`font-medium ${isMe ? 'text-primary' : 'text-gray-800'}`}>
-                        {row.username}
+                        {row.display_name || row.username}
                       </span>
                       {isMe && <span className="ml-1 text-xs text-gray-400">(you)</span>}
                     </td>
