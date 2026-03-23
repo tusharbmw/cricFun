@@ -43,12 +43,21 @@ function NotificationDropdown({ onClose }) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <span className="text-sm font-semibold text-gray-800">Notifications</span>
-        <button
-          onClick={onClose}
-          className="text-xs text-gray-400 hover:text-gray-600"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-3">
+          {notifications?.length > 0 && (
+            <button
+              onClick={() => {
+                notificationsAPI.clear().then(() => {
+                  qc.invalidateQueries({ queryKey: ['notifications'] })
+                })
+              }}
+              className="text-xs text-red-400 hover:text-red-600"
+            >
+              Clear all
+            </button>
+          )}
+          <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+        </div>
       </div>
 
       {/* List */}
@@ -56,14 +65,35 @@ function NotificationDropdown({ onClose }) {
         {!notifications?.length ? (
           <p className="text-sm text-gray-400 text-center py-8">No notifications yet</p>
         ) : (
-          notifications.slice(0, 10).map(n => (
-            <div key={n.id} className={`px-4 py-3 ${n.is_read ? '' : 'bg-blue-50/50'}`}>
-              <p className="text-sm text-gray-800 leading-snug">{n.message}</p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
-              </p>
-            </div>
-          ))
+          notifications.slice(0, 10).map(n => {
+            const url = n.type === 'pick_result'
+              ? `/results${n.meta?.match_id ? `?match=${n.meta.match_id}` : ''}`
+              : '/standings'
+            return (
+              <div key={n.id} className={`flex items-start gap-2 px-4 py-3 group ${n.is_read ? '' : 'bg-blue-50/50'}`}>
+                <Link
+                  to={url}
+                  onClick={onClose}
+                  className="flex-1 min-w-0"
+                >
+                  <p className="text-sm text-gray-800 leading-snug">{n.message}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                  </p>
+                </Link>
+                <button
+                  onClick={() => {
+                    notificationsAPI.deleteOne(n.id).then(() =>
+                      qc.invalidateQueries({ queryKey: ['notifications'] })
+                    )
+                  }}
+                  className="shrink-0 text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
+                >
+                  ✕
+                </button>
+              </div>
+            )
+          })
         )}
       </div>
 

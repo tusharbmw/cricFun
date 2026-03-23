@@ -5,6 +5,7 @@ import { picksAPI } from '@/api/picks'
 import { leaderboardAPI } from '@/api/leaderboard'
 import useAuthStore from '@/store/authStore'
 import Spinner from '@/components/ui/Spinner'
+import { usePush } from '@/hooks/usePush'
 
 export default function Profile() {
   const { user, logout, setUser } = useAuthStore()
@@ -18,6 +19,8 @@ export default function Profile() {
     queryKey: ['leaderboard', 'me'],
     queryFn: () => leaderboardAPI.me().then(r => r.data),
   })
+
+  const { supported: pushSupported, subscribed, loading: pushLoading, denied, subscribe, unsubscribe } = usePush()
 
   const [editing, setEditing] = useState(false)
   const [displayName, setDisplayName] = useState(user?.first_name ?? '')
@@ -127,6 +130,34 @@ export default function Profile() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Push notifications */}
+      {pushSupported && (
+        <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
+          <div className="p-4">
+            <h2 className="font-semibold text-gray-600 mb-3 text-sm uppercase tracking-wider">Notifications</h2>
+            {denied ? (
+              <p className="text-sm text-gray-500">
+                Push notifications are blocked in your browser settings. Enable them to receive match updates.
+              </p>
+            ) : (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Push notifications</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Match results &amp; leaderboard changes</p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary"
+                  checked={subscribed}
+                  disabled={pushLoading}
+                  onChange={() => subscribed ? unsubscribe() : subscribe()}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
