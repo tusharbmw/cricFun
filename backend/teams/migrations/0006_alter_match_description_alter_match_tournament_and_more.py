@@ -10,27 +10,34 @@ class Migration(migrations.Migration):
         ("teams", "0005_model_improvements"),
     ]
 
+    # All these columns were created with null='True' (string) in 0003 — already nullable in Oracle.
+    # Only the Python state needs updating (string "True" → bool True). No DDL needed.
     operations = [
-        migrations.AlterField(
-            model_name="match",
-            name="description",
-            field=models.TextField(blank=True, null=True),
-        ),
-        migrations.AlterField(
-            model_name="match",
-            name="tournament",
-            field=models.CharField(blank=True, default="IPL", max_length=50, null=True),
-        ),
-        migrations.AlterField(
-            model_name="match",
-            name="venue",
-            field=models.CharField(blank=True, max_length=40, null=True),
-        ),
-        migrations.AlterField(
-            model_name="selection",
-            name="selection",
-            field=models.ForeignKey(
-                null=True, on_delete=django.db.models.deletion.SET_NULL, to="teams.team"
-            ),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AlterField(
+                    model_name="match",
+                    name="description",
+                    field=models.TextField(blank=True, null=True),
+                ),
+                migrations.AlterField(
+                    model_name="match",
+                    name="tournament",
+                    field=models.CharField(blank=True, default="IPL", max_length=50, null=True),
+                ),
+                migrations.AlterField(
+                    model_name="match",
+                    name="venue",
+                    field=models.CharField(blank=True, max_length=40, null=True),
+                ),
+                migrations.AlterField(
+                    model_name="selection",
+                    name="selection",
+                    field=models.ForeignKey(
+                        null=True, on_delete=django.db.models.deletion.SET_NULL, to="teams.team"
+                    ),
+                ),
+            ],
+            database_operations=[],
         ),
     ]
