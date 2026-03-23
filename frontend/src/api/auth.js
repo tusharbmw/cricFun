@@ -6,5 +6,6 @@ export const authAPI = {
   logout:   (data) => api.post('/auth/logout/', data),
   register: (data) => api.post('/auth/register/', data),
   me:       ()     => api.get('/auth/me/'),
+  socialToken: () => api.get('/auth/social/token/'),
   updateMe: (data) => api.put('/auth/me/', data),
 }

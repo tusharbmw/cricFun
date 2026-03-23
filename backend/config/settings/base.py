@@ -156,7 +156,7 @@ REST_FRAMEWORK = {
 }
 
 LOGIN_URL = '/login'
-LOGIN_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL = '/auth/callback/'
 
 # Redis
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')

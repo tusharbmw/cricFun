@@ -12,6 +12,7 @@ import Leaderboard from '@/pages/Leaderboard'
 import MatchDetail from '@/pages/MatchDetail'
 import Profile from '@/pages/Profile'
 import Rules from '@/pages/Rules'
+import SocialCallback from '@/pages/SocialCallback'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +33,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/auth/callback/" element={<SocialCallback />} />
       <Route
         path="/"
         element={

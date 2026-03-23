@@ -10,7 +10,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 from apps.matches.views import MatchViewSet, TeamViewSet
 from apps.picks.views import SelectionViewSet
 from apps.leaderboard.views import LeaderboardView, MyRankView, LeaderboardHistoryView
-from apps.users.views import RegisterView, MeView
+from apps.users.views import RegisterView, MeView, SocialTokenView
 
 router = DefaultRouter()
 router.register('matches', MatchViewSet, basename='match')
@@ -24,6 +24,7 @@ urlpatterns = [
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/logout/', TokenBlacklistView.as_view(), name='token_blacklist'),
     path('auth/me/', MeView.as_view(), name='me'),
+    path('auth/social/token/', SocialTokenView.as_view(), name='social_token'),
 
     # Leaderboard
     path('leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
