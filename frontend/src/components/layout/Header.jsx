@@ -86,7 +86,6 @@ function NotificationDropdown({ onClose }) {
 // ---------------------------------------------------------------------------
 
 function BellButton({ missingCount, isUrgent, className }) {
-  const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 

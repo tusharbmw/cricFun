@@ -23,7 +23,6 @@ function liveRefetchInterval(query, upcomingRef) {
 }
 
 export default function Dashboard() {
-  const { user } = useAuthStore()
   const qc = useQueryClient()
   const upcomingRef = useRef([])
   const [dragTargetId, setDragTargetId] = useState(null)
