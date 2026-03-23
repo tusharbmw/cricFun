@@ -71,10 +71,12 @@ jobs:
             DJANGO_SETTINGS_MODULE=config.settings.production \
               python backend/manage.py collectstatic --noinput
 
-            echo "--- Fixing SELinux labels (Oracle Linux — venv/bin must be bin_t) ---"
+            echo "--- Fixing SELinux labels ---"
             chcon -R -t bin_t /home/opc/cricfun/venv/bin/
             chcon -R -t lib_t /home/opc/cricfun/venv/lib/
             chcon -t etc_t /home/opc/cricfun/.env
+            chcon -R -t httpd_sys_content_t /home/opc/cricfun/backend/staticroot/
+            chcon -R -t httpd_sys_content_t /home/opc/cricfun/frontend/dist/
 
             echo "--- Restarting services ---"
             # Requires passwordless sudo for systemctl restart on these services.
