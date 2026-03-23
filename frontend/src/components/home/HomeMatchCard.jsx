@@ -248,6 +248,12 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
               ⏰ Locks in {Math.ceil((dt.getTime() - now) / 3600000)}h
             </div>
           )}
+          {/* Live score / match result summary */}
+          {(isLive || isCompleted) && match.status_text && (
+            <div className="text-xs font-medium mt-1" style={{ color: isLive ? '#b91c1c' : '#374151' }}>
+              {match.status_text}
+            </div>
+          )}
           {hasPick && !isCompleted && (
             <div className="text-xs font-medium mt-1 text-green-600">
               ✓ You picked {t1Picked ? match.team1?.name : match.team2?.name}

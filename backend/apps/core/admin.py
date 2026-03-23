@@ -15,7 +15,8 @@ def _get_panel_context():
     from apps.core.cricapi import get_hits_status
     from apps.matches.tasks import CACHE_KEY_NEXT_CHECK
 
-    api_hits = get_hits_status()
+    api_hits   = get_hits_status()
+    api_paused = SiteSettings.get().api_paused
 
     now = datetime.now(timezone.utc)
 
@@ -36,6 +37,7 @@ def _get_panel_context():
 
     return {
         'api_hits': api_hits,
+        'api_paused': api_paused,
         'next_live_check': next_live_check,
         'next_live_check_in': next_live_check_in,
         'next_fetch': next_fetch,
@@ -46,7 +48,7 @@ def _get_panel_context():
 
 @admin.register(SiteSettings)
 class SiteSettingsAdmin(admin.ModelAdmin):
-    fields = ['tournament_id', 'pick_window_days']
+    fields = ['tournament_id', 'pick_window_days', 'api_paused']
     change_form_template = 'admin/core/sitesettings/change_form.html'
 
     def has_add_permission(self, request):
@@ -96,6 +98,11 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 'recalculate-leaderboard/',
                 self.admin_site.admin_view(self.recalculate_leaderboard_view),
                 name='sitesettings_recalculate_leaderboard',
+            ),
+            path(
+                'toggle-api-pause/',
+                self.admin_site.admin_view(self.toggle_api_pause_view),
+                name='sitesettings_toggle_api_pause',
             ),
         ]
         return custom + urls
@@ -229,6 +236,20 @@ class SiteSettingsAdmin(admin.ModelAdmin):
             request,
             f'Recalculated {len(completed)} snapshot(s) from scratch. Redis cache refreshed.'
         )
+        return redirect(self._settings_change_url(request))
+
+    # ------------------------------------------------------------------
+    # Toggle CricAPI pause
+    # ------------------------------------------------------------------
+
+    def toggle_api_pause_view(self, request):
+        if request.method != 'POST':
+            return redirect(self._settings_change_url(request))
+        settings = SiteSettings.get()
+        settings.api_paused = not settings.api_paused
+        settings.save()
+        state = 'PAUSED' if settings.api_paused else 'RESUMED'
+        messages.success(request, f'CricAPI calls {state}.')
         return redirect(self._settings_change_url(request))
 
     # ------------------------------------------------------------------

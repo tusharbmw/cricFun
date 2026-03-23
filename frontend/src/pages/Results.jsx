@@ -188,9 +188,11 @@ function ResultCard({ match, myPick, highlighted }) {
         {/* Match info */}
         <div className="border-t border-gray-100 pt-3 mb-3">
           <div className="text-xs text-gray-500">{format(dt, 'EEE d MMM · h:mm a')} · {match.venue}</div>
-          {winner && (
+          {match.status_text ? (
+            <div className="text-xs font-medium mt-1 text-gray-600">{match.status_text}</div>
+          ) : winner ? (
             <div className="text-xs font-medium mt-1 text-gray-600">{winner} won</div>
-          )}
+          ) : null}
           {match.result === 'CANC' && (
             <div className="text-xs text-gray-400 mt-1">Match cancelled</div>
           )}

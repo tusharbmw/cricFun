@@ -35,10 +35,11 @@ from django.core.cache import cache
 logger = logging.getLogger(__name__)
 
 # ── Cache keys ────────────────────────────────────────────────────────────────
-CACHE_KEY_HITS_USED  = 'cricket_api_hits_used'
-CACHE_KEY_HITS_LIMIT = 'cricket_api_hits_limit'
-CACHE_KEY_MATCH_PFX  = 'cricket_api_match_'
-CACHE_KEY_SERIES     = 'cricket_api_series_info'
+CACHE_KEY_HITS_USED    = 'cricket_api_hits_used'
+CACHE_KEY_HITS_LIMIT   = 'cricket_api_hits_limit'
+CACHE_KEY_QUOTA_WARNED = 'cricket_api_quota_warned'
+CACHE_KEY_MATCH_PFX    = 'cricket_api_match_v2_'   # v2: stores dict not string
+CACHE_KEY_SERIES       = 'cricket_api_series_info'
 
 # ── Cache TTLs ────────────────────────────────────────────────────────────────
 MATCH_LIVE_TTL      = 60       # live match: re-check after 1 min
@@ -48,10 +49,17 @@ HITS_COUNTER_TTL    = 86400    # reset with the API's day boundary
 
 # ── Safety reserve ────────────────────────────────────────────────────────────
 CIRCUIT_BREAKER_RESERVE = 3    # refuse all calls below this
+QUOTA_WARN_THRESHOLD    = 90   # notify admin when hits reach this
 
 
 def _api_key():
     return getattr(settings, 'CRICKET_API_KEY', '')
+
+
+def _is_paused() -> bool:
+    """Return True if admin has paused all CricAPI calls."""
+    from apps.core.models import SiteSettings
+    return SiteSettings.get().api_paused
 
 
 # ── Hits tracking (server-authoritative) ──────────────────────────────────────
@@ -60,12 +68,22 @@ def _sync_hits(info: dict):
     """
     Called after every successful API response.
     Stores the server-reported hitsToday / hitsLimit in Redis.
-    This is the single source of truth — avoids drift on process restarts.
+    Also fires a one-shot admin warning notification when quota hits 90.
     """
     used  = info.get('hitsToday', 0)
     limit = info.get('hitsLimit', 100)
     cache.set(CACHE_KEY_HITS_USED,  used,  timeout=HITS_COUNTER_TTL)
     cache.set(CACHE_KEY_HITS_LIMIT, limit, timeout=HITS_COUNTER_TTL)
+
+    # Fire admin quota warning once per day when threshold is crossed
+    if used >= QUOTA_WARN_THRESHOLD and not cache.get(CACHE_KEY_QUOTA_WARNED):
+        cache.set(CACHE_KEY_QUOTA_WARNED, 1, timeout=HITS_COUNTER_TTL)
+        try:
+            from apps.notifications.tasks import notify_admin_quota_warning
+            notify_admin_quota_warning.delay(used, limit)
+        except Exception as exc:
+            logger.error('Failed to queue quota warning notification: %s', exc)
+
     return used, limit
 
 
@@ -122,8 +140,12 @@ def get_poll_interval(live_match_count: int = 1) -> int:
 def get_series_info(tournament_id=None) -> list:
     """
     Fetch all matches in a tournament series (1 API call, cached 1 h).
-    Returns list of match dicts or [] on failure / budget exhausted.
+    Returns list of match dicts or [] on failure / budget exhausted / paused.
     """
+    if _is_paused():
+        logger.info('get_series_info skipped — API is paused by admin.')
+        return []
+
     if tournament_id is None:
         from apps.core.models import SiteSettings
         tournament_id = SiteSettings.get().tournament_id or getattr(settings, 'CRICKET_TOURNAMENT_ID', '')
@@ -164,10 +186,12 @@ def get_series_info(tournament_id=None) -> list:
             teams = match['teams']
             team_info = match.get('teamInfo', [])
 
-            if team_info and team_info[0]['name'] == teams[0]:
-                t1_info, t2_info = team_info[0], team_info[1]
-            elif team_info:
-                t1_info, t2_info = team_info[1], team_info[0]
+            # Guard against teamInfo with fewer than 2 entries
+            if len(team_info) >= 2:
+                if team_info[0]['name'] == teams[0]:
+                    t1_info, t2_info = team_info[0], team_info[1]
+                else:
+                    t1_info, t2_info = team_info[1], team_info[0]
             else:
                 t1_info = {'name': teams[0], 'shortname': '', 'img': ''}
                 t2_info = {'name': teams[1], 'shortname': '', 'img': ''}
@@ -175,14 +199,6 @@ def get_series_info(tournament_id=None) -> list:
             comma_count = match['name'].count(',')
             description = match['name'].split(',')[comma_count * -1 if comma_count else 0].strip()
             venue        = match.get('venue', '').split(',')[-1].strip()
-
-            if not match.get('matchStarted', False):
-                result = 'TBD'
-            elif match.get('matchEnded', False):
-                status = match.get('status', '')
-                result = 'team1' if teams[0] in status else 'team2'
-            else:
-                result = 'IP'
 
             matches.append({
                 'match_id':    match['id'],
@@ -194,7 +210,6 @@ def get_series_info(tournament_id=None) -> list:
                 'venue':       venue,
                 'datetime':    match['dateTimeGMT'],
                 'tournament':  tournament_id,
-                'result':      result,
             })
         except Exception as exc:
             logger.error('Error parsing match from series_info: %s — %s', match, exc)
@@ -203,18 +218,30 @@ def get_series_info(tournament_id=None) -> list:
     return matches
 
 
-def get_match_info(match_id: str) -> str:
+def get_match_info(match_id: str) -> dict:
     """
-    Get live/final result for a specific match.
-    Returns: 'TBD' | 'IP' | '<winner team name>' | 'No Winner' | 'ERR'
+    Get live/final data for a specific match.
+
+    Returns a dict:
+        {
+            'winner':      str,   # team name | 'TBD' | 'IP' | 'No Winner' | 'ERR'
+            'scores':      list,  # [{"r": 185, "w": 6, "o": 20.0, "inning": "CSK Inning 1"}, ...]
+            'status_text': str,   # e.g. "CSK won by 6 wickets" or "" if not available
+        }
 
     Cache TTLs:
-        live (IP)   → MATCH_LIVE_TTL (60 s) — let task layer control actual poll rate
-        completed   → MATCH_COMPLETED_TTL (24 h)
-        not started → 5 min
+        live (IP)    → MATCH_LIVE_TTL (60 s)
+        completed    → MATCH_COMPLETED_TTL (24 h)
+        not started  → 5 min
     """
+    err = {'winner': 'ERR', 'scores': [], 'status_text': ''}
+
+    if _is_paused():
+        logger.info('get_match_info skipped for %s — API is paused by admin.', match_id)
+        return {'winner': 'IP', 'scores': [], 'status_text': ''}
+
     if not match_id or len(str(match_id)) < 5:
-        return 'ERR'
+        return err
 
     cache_key = f'{CACHE_KEY_MATCH_PFX}{match_id}'
     cached = cache.get(cache_key)
@@ -223,7 +250,7 @@ def get_match_info(match_id: str) -> str:
 
     if not _budget_ok():
         logger.warning('match_info skipped for %s — circuit breaker open.', match_id)
-        return 'IP'  # assume still running; task will retry later
+        return {'winner': 'IP', 'scores': [], 'status_text': ''}  # assume still running
 
     url = (
         f'https://api.cricapi.com/v1/match_info'
@@ -234,7 +261,7 @@ def get_match_info(match_id: str) -> str:
             data = json.loads(resp.read().decode())
     except Exception as exc:
         logger.error('match_info request failed for %s: %s', match_id, exc)
-        return 'ERR'
+        return err
 
     if 'info' in data:
         used, limit = _sync_hits(data['info'])
@@ -245,20 +272,26 @@ def get_match_info(match_id: str) -> str:
 
     if data.get('status') != 'success':
         logger.warning('match_info non-success for %s: %s', match_id, data.get('status'))
-        return 'TBD'
+        return {'winner': 'TBD', 'scores': [], 'status_text': ''}
 
-    match_data = data.get('data', {})
+    match_data  = data.get('data', {})
+    scores      = match_data.get('score', [])
+    status_text = match_data.get('status', '')
 
     if not match_data.get('matchStarted'):
-        result = 'TBD'
+        result = {'winner': 'TBD', 'scores': scores, 'status_text': status_text}
         ttl    = 300
     elif not match_data.get('matchEnded'):
-        result = 'IP'
+        result = {'winner': 'IP', 'scores': scores, 'status_text': status_text}
         ttl    = MATCH_LIVE_TTL
     else:
         winner = match_data.get('matchWinner', '')
-        result = winner if winner else 'No Winner'
-        ttl    = MATCH_COMPLETED_TTL
+        result = {
+            'winner':      winner if winner else 'No Winner',
+            'scores':      scores,
+            'status_text': status_text,
+        }
+        ttl = MATCH_COMPLETED_TTL
 
     cache.set(cache_key, result, timeout=ttl)
     return result
