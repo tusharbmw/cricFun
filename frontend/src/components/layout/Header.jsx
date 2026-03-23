@@ -19,7 +19,7 @@ const navLinks = [
 // Notification dropdown
 // ---------------------------------------------------------------------------
 
-function NotificationDropdown({ onClose }) {
+function NotificationDropdown({ onClose, missingCount, isUrgent }) {
   const qc = useQueryClient()
 
   const { data: notifications } = useQuery({
@@ -59,6 +59,23 @@ function NotificationDropdown({ onClose }) {
           <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
         </div>
       </div>
+
+      {/* Sticky missing-picks notice */}
+      {missingCount > 0 && (
+        <Link
+          to="/schedule"
+          onClick={onClose}
+          className="flex items-center gap-2.5 px-4 py-2.5 border-b border-gray-100"
+          style={{ background: isUrgent ? '#FAEEDA' : '#E6F1FB' }}
+        >
+          <span className="text-base shrink-0">{isUrgent ? '⚠️' : 'ℹ️'}</span>
+          <p className="text-xs font-medium flex-1" style={{ color: isUrgent ? '#633806' : '#1e40af' }}>
+            {missingCount} match{missingCount !== 1 ? 'es' : ''} awaiting your pick
+            {isUrgent ? ' — closing soon' : ''}
+          </p>
+          <span className="text-xs shrink-0" style={{ color: isUrgent ? '#854d0e' : '#1d4ed8' }}>→</span>
+        </Link>
+      )}
 
       {/* List */}
       <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
@@ -158,7 +175,7 @@ function BellButton({ missingCount, isUrgent, className }) {
         )}
       </button>
 
-      {open && <NotificationDropdown onClose={() => setOpen(false)} />}
+      {open && <NotificationDropdown onClose={() => setOpen(false)} missingCount={missingCount} isUrgent={isUrgent} />}
     </div>
   )
 }
