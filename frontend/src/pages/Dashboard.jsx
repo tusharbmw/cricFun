@@ -29,8 +29,8 @@ export default function Dashboard() {
   const [applyingBoosterId, setApplyingBoosterId] = useState(null)
 
   const { data: upcoming } = useQuery({
-    queryKey: ['matches', 'upcoming'],
-    queryFn: () => matchesAPI.upcoming().then(r => r.data),
+    queryKey: ['matches', 'upcoming', 'dashboard'],
+    queryFn: () => matchesAPI.upcoming({ limit: 5 }).then(r => r.data.results),
   })
   useEffect(() => {
     if (upcoming) upcomingRef.current = upcoming
