@@ -45,6 +45,26 @@ class MarkReadView(APIView):
         return Response({'marked': marked})
 
 
+class ClearNotificationsView(APIView):
+    """DELETE /api/v1/notifications/clear/  → deletes all notifications for the user."""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        deleted, _ = Notification.objects.filter(user=request.user).delete()
+        return Response({'deleted': deleted})
+
+
+class DeleteNotificationView(APIView):
+    """DELETE /api/v1/notifications/<id>/  → deletes a single notification."""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        deleted, _ = Notification.objects.filter(user=request.user, pk=pk).delete()
+        if not deleted:
+            return Response(status=404)
+        return Response(status=204)
+
+
 class PushSubscriptionView(APIView):
     """
     POST   /api/v1/notifications/push/  → save a push subscription

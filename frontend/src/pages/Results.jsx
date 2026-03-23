@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { matchesAPI } from '@/api/matches'
@@ -33,6 +35,9 @@ function ResultStateBadge({ result, myPick, won }) {
 }
 
 export default function Results() {
+  const [searchParams] = useSearchParams()
+  const scrollToMatchId = searchParams.get('match')
+
   const { data: completed, isLoading } = useQuery({
     queryKey: ['matches', 'completed'],
     queryFn: () => matchesAPI.completed().then(r => r.data),
@@ -46,6 +51,12 @@ export default function Results() {
   const pickMap = {}
   historyData?.results?.forEach(b => { pickMap[b.match] = b })
 
+  useEffect(() => {
+    if (!scrollToMatchId || !completed?.length) return
+    const el = document.getElementById(`match-${scrollToMatchId}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [scrollToMatchId, completed])
+
   if (isLoading) return <Spinner />
 
   return (
@@ -57,13 +68,13 @@ export default function Results() {
           <div className="text-center text-gray-400 py-10">No completed matches yet.</div>
         </div>
       ) : (
-        completed.map(m => <ResultCard key={m.id} match={m} myPick={pickMap[m.id] ?? null} />)
+        completed.map(m => <ResultCard key={m.id} match={m} myPick={pickMap[m.id] ?? null} highlighted={String(m.id) === scrollToMatchId} />)
       )}
     </div>
   )
 }
 
-function ResultCard({ match, myPick }) {
+function ResultCard({ match, myPick, highlighted }) {
   const { user } = useAuthStore()
   const dt = new Date(match.datetime)
   const winner = match.result === 'team1' ? match.team1?.name : match.result === 'team2' ? match.team2?.name : null
@@ -103,7 +114,7 @@ function ResultCard({ match, myPick }) {
   }
 
   return (
-    <div className="bg-white rounded-xl relative border border-gray-200">
+    <div id={`match-${match.id}`} className={`bg-white rounded-xl relative border ${highlighted ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'}`}>
       <div className="p-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
