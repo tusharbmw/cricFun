@@ -2,6 +2,12 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env before setdefault so DJANGO_SETTINGS_MODULE in .env takes effect.
+# Production .env sets: DJANGO_SETTINGS_MODULE=config.settings.production
+load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 
 
 def main():
