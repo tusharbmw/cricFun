@@ -35,6 +35,8 @@ class Match(models.Model):
     tournament = models.CharField(max_length=50, default='IPL', blank=True, null=True)
     match_id = models.CharField(max_length=50, blank=True, null=True, unique=True)
     match_points = models.IntegerField(default=1)
+    scores = models.JSONField(default=list, blank=True)
+    status_text = models.CharField(max_length=200, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -16,6 +16,10 @@ class SiteSettings(models.Model):
         default='',
         help_text='CricAPI tournament/series ID (replaces CRIC_TOURNAMENT_ID env var).',
     )
+    api_paused = models.BooleanField(
+        default=False,
+        help_text='Pause all CricAPI calls (live score polling + schedule fetch). Use when API has issues.',
+    )
 
     class Meta:
         verbose_name = 'Site Settings'

@@ -135,32 +135,35 @@ export default function Profile() {
       )}
 
       {/* Push notifications */}
-      {pushSupported && (
-        <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
-          <div className="p-4">
-            <h2 className="font-semibold text-gray-600 mb-3 text-sm uppercase tracking-wider">Notifications</h2>
-            {denied ? (
-              <p className="text-sm text-gray-500">
-                Push notifications are blocked in your browser settings. Enable them to receive match updates.
-              </p>
-            ) : (
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Push notifications</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Match results &amp; leaderboard changes</p>
-                </div>
-                <input
-                  type="checkbox"
-                  className="toggle toggle-primary"
-                  checked={subscribed}
-                  disabled={pushLoading}
-                  onChange={() => subscribed ? unsubscribe() : subscribe()}
-                />
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
+        <div className="p-4">
+          <h2 className="font-semibold text-gray-600 mb-3 text-sm uppercase tracking-wider">Notifications</h2>
+          {!pushSupported ? (
+            <p className="text-sm text-gray-500">
+              Push notifications require CricFun to be installed as an app.
+              Tap <strong>Share → Add to Home Screen</strong> in Safari, then open from your home screen.
+            </p>
+          ) : denied ? (
+            <p className="text-sm text-gray-500">
+              Push notifications are blocked. Go to <strong>Settings → Safari → {window.location.hostname} → Notifications</strong> and allow them.
+            </p>
+          ) : (
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-800">Push notifications</p>
+                <p className="text-xs text-gray-400 mt-0.5">Match results &amp; leaderboard changes</p>
               </div>
-            )}
-          </div>
+              <input
+                type="checkbox"
+                className="toggle toggle-primary"
+                checked={subscribed}
+                disabled={pushLoading}
+                onChange={() => subscribed ? unsubscribe() : subscribe()}
+              />
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Admin panel link — staff only */}
       {user?.is_staff && (

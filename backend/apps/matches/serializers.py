@@ -27,6 +27,7 @@ class MatchSerializer(serializers.ModelSerializer):
             'id', 'team1', 'team2', 'team1_id', 'team2_id',
             'description', 'venue', 'result', 'result_display',
             'datetime', 'tournament', 'match_id', 'match_points',
+            'scores', 'status_text',
             'is_live', 'is_completed', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']

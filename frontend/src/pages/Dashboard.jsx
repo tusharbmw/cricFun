@@ -197,7 +197,7 @@ export default function Dashboard() {
               <h2 className="text-base font-medium text-gray-800">
                 {live?.length > 0 ? '🔴 Live & Upcoming' : 'Upcoming matches'}
               </h2>
-              <Link to="/schedule" className="text-sm font-medium text-blue-600 hover:underline">All predictions →</Link>
+              <Link to="/schedule" className="text-sm font-medium text-blue-600 hover:underline">All picks →</Link>
             </div>
 
             {!upcoming && !live ? (

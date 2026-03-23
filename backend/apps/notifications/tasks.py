@@ -120,6 +120,36 @@ def send_custom_notification(title, message, url, user_ids):
 
 
 @shared_task
+def notify_admin_quota_warning(used: int, limit: int):
+    """
+    Send an in-app notification to all staff users when CricAPI quota hits 90%.
+    Fired once per day from cricapi._sync_hits when hitsToday >= QUOTA_WARN_THRESHOLD.
+    """
+    from django.contrib.auth.models import User
+    from apps.notifications.models import Notification
+
+    staff_users = list(User.objects.filter(is_staff=True, is_active=True))
+    if not staff_users:
+        return
+
+    remaining = limit - used
+    message = (
+        f'⚠️ CricAPI quota warning: {used}/{limit} calls used today '
+        f'({remaining} remaining). Live polling will slow down automatically.'
+    )
+    Notification.objects.bulk_create([
+        Notification(
+            user=u,
+            type='custom',
+            message=message,
+            meta={'title': 'API Quota Warning', 'url': '/admin/core/sitesettings/1/change/'},
+        )
+        for u in staff_users
+    ])
+    logger.info('notify_admin_quota_warning: notified %d staff user(s)', len(staff_users))
+
+
+@shared_task
 def send_pick_reminders():
     """
     Runs every 30 min via Beat.

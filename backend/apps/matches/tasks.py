@@ -78,7 +78,18 @@ def update_live_scores(self):
     updated = 0
     for match in live_matches:
         try:
-            winner = cricapi.get_match_info(match.match_id)
+            info   = cricapi.get_match_info(match.match_id)
+            winner = info['winner']
+
+            # Always persist latest scores + status even if match is still live
+            score_changed = (
+                info['scores'] != match.scores or
+                info['status_text'] != match.status_text
+            )
+            if score_changed:
+                match.scores      = info['scores']
+                match.status_text = info['status_text']
+                match.save(update_fields=['scores', 'status_text', 'updated_at'])
 
             if winner in ('TBD', 'IP', 'ERR'):
                 continue
