@@ -32,7 +32,7 @@ jobs:
       - run: cd backend && pip install -r requirements/local.txt
       - run: |
           cd backend
-          DJANGO_SETTINGS_MODULE=config.settings.test pytest apps/picks/tests.py apps/leaderboard/tests.py -v
+          DJANGO_SETTINGS_MODULE=config.settings.test pytest apps/picks/tests.py apps/leaderboard/tests.py apps/notifications/tests.py -v
 
   deploy:
     runs-on: ubuntu-latest
