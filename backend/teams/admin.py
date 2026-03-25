@@ -36,6 +36,14 @@ class MatchAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at']
     inlines         = [SelectionInline]
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # When admin manually sets a final result, trigger the same pipeline
+        # that update_live_scores triggers: pick processing + leaderboard snapshot.
+        if change and 'result' in form.changed_data and obj.result in ('team1', 'team2', 'NR'):
+            from apps.matches.tasks import finalize_match_results
+            finalize_match_results.delay(obj.id)
+
 
 # ---------------------------------------------------------------------------
 # Selection standalone list
