@@ -6,13 +6,15 @@ A cricket prediction game for friends — pick match winners, apply powerups, an
 
 | Layer | Technology |
 |---|---|
-| Backend | Django 5.2 LTS + Django REST Framework 3.17 |
-| Frontend | React 18 + Vite + Tailwind CSS v4 |
+| Backend | Django 5.2 LTS + Django REST Framework |
+| Frontend | React 19 + Vite + Tailwind CSS v4 |
 | Database | Oracle DB |
 | Cache / Sessions | Redis |
 | Task Queue | Celery + Celery Beat |
-| Auth | JWT (djangorestframework-simplejwt) |
+| Auth | JWT (djangorestframework-simplejwt) + Google OAuth |
+| Charts | Recharts |
 | Server | Gunicorn + Nginx |
+| CI/CD | GitHub Actions |
 
 ## Project Structure
 
@@ -20,23 +22,24 @@ A cricket prediction game for friends — pick match winners, apply powerups, an
 cricFun/
 ├── backend/          # Django REST API
 │   ├── apps/
+│   │   ├── core/         # SiteSettings, CricAPI client, shared utilities
+│   │   ├── leaderboard/  # Rankings, scores, snapshots, history
+│   │   ├── matches/      # Match data, Cricket API polling tasks
+│   │   ├── notifications/ # In-app notifications, rank-change alerts
 │   │   ├── picks/        # Pick placement, powerups
-│   │   ├── leaderboard/  # Rankings and scores
-│   │   ├── matches/      # Match data + Cricket API tasks
-│   │   └── core/         # Shared utilities
-│   ├── config/           # Settings (base / local / production)
+│   │   └── users/        # User profiles
+│   ├── config/           # Settings (base / local / production / test)
 │   ├── teams/            # Team and Match models
 │   └── manage.py
 ├── frontend/         # React SPA
 │   └── src/
 │       ├── api/          # Axios API clients
-│       ├── components/   # UI components (Card, Spinner, Badge...)
-│       ├── features/     # MatchCard
-│       ├── hooks/        # useCountdown
-│       ├── pages/        # Dashboard, Schedule, Results, Leaderboard, Profile, Rules
+│       ├── components/   # UI components (layout, cards, spinner...)
+│       ├── pages/        # Dashboard, Schedule, Results, Leaderboard, Profile, Rules, MatchDetail
 │       └── store/        # Zustand auth store
 ├── .env.example
-└── projectplan.md    # Full v2 migration plan with phase status
+└── docs/
+    └── DEPLOYMENT.md     # Full production deployment guide
 ```
 
 ## Local Development
@@ -49,7 +52,7 @@ cricFun/
 - Redis — either via Docker or Homebrew:
 
 ```bash
-# Option A — Docker (recommended, no install needed)
+# Option A — Docker (recommended)
 docker compose up -d        # starts Redis on port 6379
 
 # Option B — Homebrew
@@ -73,7 +76,7 @@ npm run dev       # starts at http://localhost:5173
                   # /api/* proxied to http://127.0.0.1:8000
 ```
 
-### Celery (optional — needed for live score updates)
+### Celery (needed for live score updates and notifications)
 
 ```bash
 cd backend
@@ -104,15 +107,7 @@ REDIS_URL=redis://localhost:6379/0
 
 ## Production
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full step-by-step guide covering:
-- System dependencies (Redis, Python 3.12, Node.js)
-- Gunicorn systemd service setup
-- Celery + Celery Beat services
-- Nginx config (SPA routing + API proxy)
-- SELinux settings for Oracle Linux
-- SSL renewal and routine update procedure
-
-Key commands:
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full step-by-step guide. Key commands:
 
 ```bash
 # Build frontend
@@ -126,33 +121,39 @@ python manage.py migrate
 
 # Renew SSL certificate
 sudo certbot renew --nginx
-
-# Oracle: grant tablespace if needed
-GRANT UNLIMITED TABLESPACE TO user;
 ```
+
+Deploy to production by merging to `main` — GitHub Actions runs lint, tests, build, migration, and restarts services automatically.
 
 ## Features
 
 - **Match schedule** — pick a team to win before the pick window closes; countdown timer per match
-- **Powerups** — Hidden (hide your pick), Fake (show wrong pick), No-Neg (no negative points if wrong)
-- **Smart polling** — live match endpoint polled at 30s when live, 5min if match starts within 2hrs, never otherwise
-- **Leaderboard** — real-time standings with win/loss/skips and points
-- **Results** — completed matches with all user picks visible
-- **Rules** — full scoring, powerup, and tiebreaker rules
+- **Powerups** — Hidden (hide your pick from others), Googly (show opponents a fake pick), The Wall (no negative points if wrong); 5 of each per season
+- **Playoff auto-hide** — picks on Semi-finals, Qualifiers, and Finals are automatically hidden
+- **Smart API polling** — CricAPI budget-aware; poll interval scales from 3 min (plenty of budget) to 30 min (low budget); circuit breaker at ≤3 remaining calls
+- **Leaderboard** — standings table with W/L/skip counts + rank and points progression charts across all matches
+- **Leaderboard snapshots** — leaderboard state saved to DB after every match result; Redis-cached for fast serving
+- **In-app notifications** — rank-change alerts when #1 changes; missing-pick badge on bell icon
+- **Results** — completed matches with all user picks and outcomes visible
+- **Admin tools** — pause CricAPI, backfill snapshots, API quota counter, send notifications to all users
+- **Rules** — full scoring, powerup, and tiebreaker rules; pick window dynamically reflects admin setting
 
 ## Testing
 
 ```bash
 cd backend
-pytest apps/picks/tests.py apps/leaderboard/tests.py -v
-# 25 tests, 25 passing
+pytest apps/picks/tests.py apps/leaderboard/tests.py apps/notifications/tests.py -v
 ```
 
-Test settings use SQLite in-memory (`config.settings.test`) — no Oracle needed to run tests.
+Test settings use SQLite in-memory (`config.settings.test`) — no Oracle needed.
 
 ## Status
 
-Phases 0–5 complete (backend API, React frontend, tests, code quality).
-All packages on latest compatible versions — Django 5.2.12 LTS.
-Next: Phase 6 (Docker) → Phase 7 (production deployment).
-See [projectplan.md](projectplan.md) for detailed progress.
+Live in production. All core features shipped:
+- Pick placement with powerups and playoff auto-hide
+- Scoring engine with skip/disqualification logic
+- Leaderboard with DB-backed history snapshots and progression charts
+- In-app notifications for rank changes
+- CricAPI live score polling with budget management
+- Google OAuth login
+- PWA-ready (installable on mobile)
