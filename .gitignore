@@ -36,6 +36,7 @@ db.sqlite3-journal
 media/
 staticfiles/
 staticroot/
+celerybeat-schedule.db
 
 # Environment variables
 .env
@@ -64,6 +65,7 @@ CRICFUN_HOMEPAGE_IMPLEMENTATION_PROMPT.md
 node_modules/
 frontend/dist/
 frontend/build/
+frontend/.vite/
 frontend/.env
 frontend/.env.local
 frontend/.env.*.local
@@ -86,6 +88,9 @@ coverage.xml
 
 # ruff
 .ruff_cache/
+
+# Misc
+cricfun-design-mockups.html
 
 #docs
 docs/DEPLOYMENT.md
