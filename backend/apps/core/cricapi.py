@@ -275,8 +275,8 @@ def get_match_info(match_id: str) -> dict:
         return {'winner': 'TBD', 'scores': [], 'status_text': ''}
 
     match_data  = data.get('data', {})
-    scores      = match_data.get('score', [])
-    status_text = match_data.get('status', '')
+    scores      = match_data.get('score') or []
+    status_text = match_data.get('status') or ''
 
     if not match_data.get('matchStarted'):
         result = {'winner': 'TBD', 'scores': scores, 'status_text': status_text}

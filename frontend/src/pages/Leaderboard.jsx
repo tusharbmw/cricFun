@@ -8,17 +8,23 @@ import useAuthStore from '@/store/authStore'
 import Spinner from '@/components/ui/Spinner'
 
 // ---------------------------------------------------------------------------
+// Shared empty state
+// ---------------------------------------------------------------------------
+
+function ChartEmptyState() {
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl p-8 text-center text-gray-400 text-sm">
+      Chart will appear after the first match result is recorded.
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Rank history line chart
 // ---------------------------------------------------------------------------
 
 function RankHistoryChart({ history, currentUsername }) {
-  if (!history?.length) {
-    return (
-      <div className="bg-white border border-gray-100 rounded-xl p-8 text-center text-gray-400 text-sm">
-        Rank history will appear after the first match result is recorded.
-      </div>
-    )
-  }
+  if (!history?.length) return <ChartEmptyState />
 
   // All usernames that appear in any snapshot
   const allUsers = [...new Set(
@@ -78,6 +84,70 @@ function RankHistoryChart({ history, currentUsername }) {
       </ResponsiveContainer>
       <p className="text-xs text-gray-400 text-center mt-1">
         Your line is highlighted in blue · Rank 1 = top
+      </p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Points progression line chart
+// ---------------------------------------------------------------------------
+
+function PointsProgressionChart({ history, currentUsername }) {
+  if (!history?.length) return <ChartEmptyState />
+
+  const allUsers = [...new Set(
+    history.flatMap(snap => snap.rankings.map(r => r.username))
+  )]
+
+  const chartData = history.map(snap => {
+    const point = { label: snap.label, full_label: snap.full_label }
+    snap.rankings.forEach(r => { point[r.username] = r.total })
+    return point
+  })
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4">
+      <h2 className="text-sm font-semibold text-gray-700 mb-4">Points Progression</h2>
+      <ResponsiveContainer width="100%" height={280}>
+        <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 48, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 10, fill: '#9ca3af' }}
+            interval={0}
+            angle={-35}
+            textAnchor="end"
+          />
+          <YAxis
+            allowDecimals={false}
+            tick={{ fontSize: 11, fill: '#6b7280' }}
+            label={{ value: 'Points', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#9ca3af' }}
+          />
+          <Tooltip
+            formatter={(value, name) => [value, name]}
+            labelFormatter={(_, payload) => payload?.[0]?.payload?.full_label ?? ''}
+            contentStyle={{ fontSize: 12 }}
+          />
+          {allUsers.map(username => {
+            const isMe = username === currentUsername
+            return (
+              <Line
+                key={username}
+                type="monotone"
+                dataKey={username}
+                stroke={isMe ? '#2563eb' : '#d1d5db'}
+                strokeWidth={isMe ? 2.5 : 1}
+                dot={isMe ? { r: 3, fill: '#2563eb' } : false}
+                activeDot={{ r: isMe ? 5 : 3 }}
+                connectNulls
+              />
+            )
+          })}
+        </LineChart>
+      </ResponsiveContainer>
+      <p className="text-xs text-gray-400 text-center mt-1">
+        Your line is highlighted in blue · Higher = more points
       </p>
     </div>
   )
@@ -163,6 +233,12 @@ export default function Leaderboard() {
       {historyLoading
         ? <Spinner />
         : <RankHistoryChart history={history} currentUsername={user?.username} />
+      }
+
+      {/* Points progression chart */}
+      {historyLoading
+        ? <Spinner />
+        : <PointsProgressionChart history={history} currentUsername={user?.username} />
       }
     </div>
   )
