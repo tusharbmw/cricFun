@@ -27,7 +27,7 @@ export default function SocialCallback() {
       .catch(() => {
         navigate('/login', { replace: true })
       })
-  }, [])
+  }, [navigate, setUser])
 
   return (
     <div className="min-h-screen flex items-center justify-center">
