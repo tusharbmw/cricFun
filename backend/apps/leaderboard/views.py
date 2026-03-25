@@ -145,7 +145,8 @@ def take_snapshot(match_id):
         for e in ranked
     ]
 
-    # Detect rank-1 change before saving (compare against previous snapshot)
+    # Detect rank-1 change by comparing against the previous match's snapshot.
+    # Must be done before update_or_create so we get the true "before" state.
     prev_leader = None
     try:
         prev = (LeaderboardSnapshot.objects
@@ -156,7 +157,7 @@ def take_snapshot(match_id):
     except LeaderboardSnapshot.DoesNotExist:
         pass
 
-    LeaderboardSnapshot.objects.update_or_create(
+    _, created = LeaderboardSnapshot.objects.update_or_create(
         match=match,
         defaults={'rankings': snapshot_data},
     )
@@ -165,9 +166,12 @@ def take_snapshot(match_id):
     cache.set(CACHE_KEY_LEADERBOARD, ranked, timeout=CACHE_TTL)
     logger.info('take_snapshot: saved snapshot + cache refreshed for match %s', match_id)
 
-    # Fire rank-change notification if #1 changed
+    # Fire rank-change notification only on the FIRST snapshot for this match.
+    # update_or_create returns created=False on retries/re-runs, preventing
+    # duplicate notifications when take_snapshot is called multiple times for
+    # the same match (e.g. admin re-runs backfill or Celery retries).
     new_leader = ranked[0]['username'] if ranked else None
-    if new_leader and new_leader != prev_leader:
+    if created and new_leader and new_leader != prev_leader:
         from apps.notifications.tasks import notify_rank_change
         notify_rank_change.delay(new_leader, match_id, prev_leader)
         logger.info(
