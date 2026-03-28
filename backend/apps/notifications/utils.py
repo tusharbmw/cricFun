@@ -37,6 +37,7 @@ def send_push_notification(subscription, title, body, url='/'):
             data=json.dumps({'title': title, 'body': body, 'url': url}),
             vapid_private_key=private_key,
             vapid_claims={'sub': f'mailto:{admin_email}'},
+            ttl=3600,
         )
         return True
     except WebPushException as ex:
