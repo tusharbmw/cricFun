@@ -108,8 +108,12 @@ function ResultCard({ match, myPick, highlighted }) {
       const loserCount = t1MyPick ? sel.team2_count : sel.team1_count
       pointsDisplay = { text: `+${loserCount * match.match_points} pts`, positive: true, count: loserCount }
     } else if (lost) {
-      const winnerCount = t1MyPick ? sel.team1_count : sel.team2_count
-      pointsDisplay = { text: `-${winnerCount * match.match_points} pts`, positive: false, count: winnerCount }
+      const winnerCount = t1Won ? sel.team1_count : sel.team2_count
+      if (powerup === 'no_negative') {
+        pointsDisplay = { text: '0 pts', positive: true, wall: true }
+      } else {
+        pointsDisplay = { text: `-${winnerCount * match.match_points} pts`, positive: false, count: winnerCount }
+      }
     }
   }
 
@@ -128,7 +132,7 @@ function ResultCard({ match, myPick, highlighted }) {
             </span>
             {pointsDisplay && (
               <span className="text-sm font-bold px-2 py-0.5 rounded"
-                style={pointsDisplay.skipped
+                style={pointsDisplay.skipped || pointsDisplay.wall
                   ? { background: '#f3f4f6', color: '#6b7280' }
                   : pointsDisplay.positive
                     ? { background: '#E1F5EE', color: '#085041' }
@@ -259,9 +263,11 @@ function ResultCard({ match, myPick, highlighted }) {
         )}
         {!isSkipped && pointsDisplay && sel && (
           <p className="text-xs mt-2 font-medium" style={pointsDisplay.positive ? { color: '#085041' } : { color: '#791F1F' }}>
-            {pointsDisplay.positive
-              ? `You earned ${pointsDisplay.text} (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the loser)`
-              : `You lost ${Math.abs(pointsDisplay.count * match.match_points)} pts (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the winner)`
+            {pointsDisplay.wall
+              ? `🛡️ The Wall blocked your loss — 0 pts`
+              : pointsDisplay.positive
+                ? `You earned ${pointsDisplay.text} (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the loser)`
+                : `You lost ${pointsDisplay.count * match.match_points} pts (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the winner)`
             }
           </p>
         )}

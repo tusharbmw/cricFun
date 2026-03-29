@@ -83,10 +83,14 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   } else if (isCompleted && hasPick && sel && winner) {
     if (userWon) {
       const loserCount = match.result === 'team1' ? sel.team2_count : sel.team1_count
-      pointsDisplay = { text: `+${loserCount * match.match_points} pts`, positive: true }
+      pointsDisplay = { text: `+${loserCount * match.match_points} pts`, positive: true, count: loserCount }
     } else {
       const winnerCount = match.result === 'team1' ? sel.team1_count : sel.team2_count
-      pointsDisplay = { text: `-${winnerCount * match.match_points} pts`, positive: false }
+      if (powerup === 'no_negative') {
+        pointsDisplay = { text: '0 pts', positive: true, wall: true }
+      } else {
+        pointsDisplay = { text: `-${winnerCount * match.match_points} pts`, positive: false, count: winnerCount }
+      }
     }
   }
 
@@ -175,7 +179,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
             </span>
             {pointsDisplay && (
               <span className="text-sm font-bold px-2 py-0.5 rounded"
-                style={pointsDisplay.skipped
+                style={pointsDisplay.skipped || pointsDisplay.wall
                   ? { background: '#f3f4f6', color: '#6b7280' }
                   : pointsDisplay.positive
                     ? { background: '#E1F5EE', color: '#085041' }
@@ -293,9 +297,11 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
         )}
         {isCompleted && hasPick && pointsDisplay && sel && (
           <p className="text-xs mt-2 font-medium" style={pointsDisplay.positive ? { color: '#085041' } : { color: '#791F1F' }}>
-            {pointsDisplay.positive
-              ? `You earned ${pointsDisplay.text} (${match.match_points} pt × ${match.result === 'team1' ? sel.team2_count : sel.team1_count} opponents who picked the loser)`
-              : `You lost ${pointsDisplay.text} (${match.match_points} pt × ${match.result === 'team1' ? sel.team1_count : sel.team2_count} opponents who picked the winner)`
+            {pointsDisplay.wall
+              ? `🛡️ The Wall blocked your loss — 0 pts`
+              : pointsDisplay.positive
+                ? `You earned ${pointsDisplay.text} (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the loser)`
+                : `You lost ${pointsDisplay.count * match.match_points} pts (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the winner)`
             }
           </p>
         )}
