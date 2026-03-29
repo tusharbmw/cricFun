@@ -4,6 +4,7 @@ Shared across all environments.
 """
 
 from pathlib import Path
+from datetime import timedelta
 import os
 from dotenv import load_dotenv
 
@@ -154,6 +155,17 @@ REST_FRAMEWORK = {
         'user': '2000/hour',
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# JWT — access token short-lived (auto-refreshed silently by frontend);
+# refresh token long-lived so users stay logged in across sessions.
+# ROTATE_REFRESH_TOKENS issues a fresh refresh token on every refresh call,
+# keeping active users logged in indefinitely.
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME':    timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME':   timedelta(days=60),
+    'ROTATE_REFRESH_TOKENS':    True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 LOGIN_URL = '/login'
