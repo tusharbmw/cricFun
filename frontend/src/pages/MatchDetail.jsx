@@ -5,6 +5,12 @@ import { matchesAPI } from '@/api/matches'
 import Spinner from '@/components/ui/Spinner'
 import { matchStatusBadge } from '@/components/ui/Badge'
 
+const POWERUP_META = {
+  hidden:      { emoji: '🕵️', label: 'Hidden' },
+  fake:        { emoji: '🃏', label: 'Googly' },
+  no_negative: { emoji: '🛡️', label: 'The Wall' },
+}
+
 export default function MatchDetail() {
   const { id } = useParams()
 
@@ -64,9 +70,14 @@ export default function MatchDetail() {
                 </div>
                 {sel.team1_selections?.length === 0
                   ? <p className="text-xs text-gray-300">No picks yet</p>
-                  : sel.team1_selections?.map(u => (
-                      <div key={u} className="text-sm text-gray-600 py-0.5">{u}</div>
-                    ))
+                  : sel.team1_selections?.map(u => {
+                      const pp = sel.powerups?.[u]
+                      return (
+                        <div key={u} className="text-sm text-gray-600 py-0.5">
+                          {u}{pp && <span title={POWERUP_META[pp].label}> {POWERUP_META[pp].emoji}</span>}
+                        </div>
+                      )
+                    })
                 }
               </div>
               <div>
@@ -75,9 +86,14 @@ export default function MatchDetail() {
                 </div>
                 {sel.team2_selections?.length === 0
                   ? <p className="text-xs text-gray-300">No picks yet</p>
-                  : sel.team2_selections?.map(u => (
-                      <div key={u} className="text-sm text-gray-600 py-0.5">{u}</div>
-                    ))
+                  : sel.team2_selections?.map(u => {
+                      const pp = sel.powerups?.[u]
+                      return (
+                        <div key={u} className="text-sm text-gray-600 py-0.5">
+                          {u}{pp && <span title={POWERUP_META[pp].label}> {POWERUP_META[pp].emoji}</span>}
+                        </div>
+                      )
+                    })
                 }
               </div>
             </div>

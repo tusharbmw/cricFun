@@ -230,16 +230,20 @@ function ResultCard({ match, myPick, highlighted }) {
                 {picks.length === 0
                   ? <p className="text-xs text-gray-400 italic">No picks</p>
                   : <div className="flex flex-wrap gap-1">
-                    {picks.map(username => (
-                      <span key={username}
-                        className="text-xs px-1.5 py-0.5 rounded-md font-medium"
-                        style={username === user?.username
-                          ? { background: '#E6F1FB', color: '#0C447C', fontWeight: 700 }
-                          : { background: '#e5e7eb', color: '#374151' }
-                        }>
-                        {username === user?.username ? `${username} (you)` : username}
-                      </span>
-                    ))}
+                    {picks.map(username => {
+                      const pp = sel.powerups?.[username]
+                      return (
+                        <span key={username}
+                          className="text-xs px-1.5 py-0.5 rounded-md font-medium"
+                          style={username === user?.username
+                            ? { background: '#E6F1FB', color: '#0C447C', fontWeight: 700 }
+                            : { background: '#e5e7eb', color: '#374151' }
+                          }>
+                          {username === user?.username ? `${username} (you)` : username}
+                          {pp && <span title={POWERUP_META[pp].label}> {POWERUP_META[pp].emoji}</span>}
+                        </span>
+                      )
+                    })}
                   </div>
                 }
               </div>

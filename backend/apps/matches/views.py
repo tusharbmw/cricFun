@@ -78,11 +78,12 @@ class MatchViewSet(viewsets.ModelViewSet):
         """
         match = self.get_object()
         # Reveal real picks as soon as match is no longer TBD (locked/live/completed)
-        is_locked = match.result != 'TBD'
+        is_locked = match.result not in ('TBD', 'TOSS')
 
         sel1_users = []
         sel2_users = []
         hidden_count = 0
+        powerups = {}  # {username: 'hidden'|'fake'|'no_negative'} — only populated when locked
 
         for s in match.selection_set.select_related('user', 'selection').all():
             is_own = s.user_id == request.user.id
@@ -106,6 +107,15 @@ class MatchViewSet(viewsets.ModelViewSet):
             elif s.selection == match.team2:
                 sel2_users.append(s.user.username)
 
+            # Record which powerplay (if any) was used — only revealed once locked
+            if is_locked:
+                if s.hidden:
+                    powerups[s.user.username] = 'hidden'
+                elif s.fake:
+                    powerups[s.user.username] = 'fake'
+                elif s.no_negative:
+                    powerups[s.user.username] = 'no_negative'
+
         return Response({
             'match_id': match.id,
             'team1': match.team1.name if match.team1 else None,
@@ -115,4 +125,5 @@ class MatchViewSet(viewsets.ModelViewSet):
             'team2_selections': sel2_users,
             'team2_count': len(sel2_users),
             'hidden_count': hidden_count,
+            'powerups': powerups,
         })

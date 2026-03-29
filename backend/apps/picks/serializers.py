@@ -48,7 +48,7 @@ class SelectionSerializer(serializers.ModelSerializer):
         if match and match.datetime > now + timedelta(days=window):
             raise serializers.ValidationError(f"Picks can only be placed within {window} days of the match.")
 
-        if match and match.result not in ('TBD',):
+        if match and match.result not in ('TBD', 'TOSS'):
             raise serializers.ValidationError("Can only pick on upcoming (TBD) matches.")
 
         # Duplicate-pick check (only on create, not update)
