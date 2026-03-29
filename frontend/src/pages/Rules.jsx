@@ -80,8 +80,10 @@ export default function Rules() {
           <p className="text-sm text-gray-500">Tiebreaker order:</p>
           <ol className="mt-1 space-y-1 text-sm text-gray-600 list-decimal list-inside">
             <li>Fewest skipped matches</li>
+            <li>Most points won (gross points earned, before deductions)</li>
             <li>Most matches won</li>
-            <li>Head to head pick comparison</li>
+            <li>Fewest PowerPlays used</li>
+            <li>Head-to-head pick comparison</li>
             <li>Joint winners 🏆</li>
           </ol>
         </>

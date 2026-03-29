@@ -37,14 +37,15 @@ def calculate_scores(upto_match_id=None):
     scores = {}
     for u in User.objects.filter(is_active=True):
         scores[u.username] = {
-            'user_id':      u.id,
-            'username':     u.username,
-            'display_name': u.first_name or u.username,
-            'won':          0,
-            'lost':         0,
-            'skipped':      0,
-            'matches_won':  0,
-            'matches_lost': 0,
+            'user_id':       u.id,
+            'username':      u.username,
+            'display_name':  u.first_name or u.username,
+            'won':           0,
+            'lost':          0,
+            'skipped':       0,
+            'matches_won':   0,
+            'matches_lost':  0,
+            'powerups_used': 0,
         }
 
     matches_qs = Match.objects.filter(
@@ -70,6 +71,9 @@ def calculate_scores(upto_match_id=None):
                 sel2.append(s.user.username)
             if s.no_negative:
                 no_neg.append(s.user.username)
+            if s.hidden or s.fake or s.no_negative:
+                if s.user.username in scores:
+                    scores[s.user.username]['powerups_used'] += 1
 
         pickers = set(sel1 + sel2)
         for username in scores:
@@ -106,11 +110,96 @@ def calculate_scores(upto_match_id=None):
     return scores
 
 
+def _tie_key(entry):
+    """The 4-tuple used to detect ties after primary sort."""
+    return (entry['total'], entry['skipped'], entry['won'],
+            entry['matches_won'], entry['powerups_used'])
+
+
+def _head_to_head(username_a, username_b):
+    """
+    Return (a_wins, b_wins) from completed matches where A and B picked
+    opposite sides.  Single query — safe to call only for 2-player ties.
+    """
+    from django.db.models import Q as _Q
+    sels = (
+        Selection.objects
+        .filter(
+            user__username__in=[username_a, username_b],
+            match__result__in=['team1', 'team2'],
+        )
+        .select_related('match__team1', 'match__team2', 'selection', 'user')
+    )
+    by_match = {}
+    for s in sels:
+        by_match.setdefault(s.match_id, {})[s.user.username] = s
+
+    a_wins = b_wins = 0
+    for picks in by_match.values():
+        if username_a not in picks or username_b not in picks:
+            continue
+        sa, sb = picks[username_a], picks[username_b]
+        if sa.selection_id == sb.selection_id:
+            continue  # same side — not a direct clash
+        winner = sa.match.team1 if sa.match.result == 'team1' else sa.match.team2
+        if sa.selection == winner:
+            a_wins += 1
+        else:
+            b_wins += 1
+    return a_wins, b_wins
+
+
 def _build_ranked_list(scores):
-    """Sort scores dict into a ranked list (rank 1 = highest total)."""
-    ranked = sorted(scores.values(), key=lambda x: x['total'], reverse=True)
-    for i, entry in enumerate(ranked, 1):
-        entry['rank'] = i
+    """
+    Sort scores into a ranked list applying the full tiebreaker chain:
+      Primary : highest total
+      TB1     : fewest skipped
+      TB2     : most points won (gross)
+      TB3     : most matches won
+      TB4     : fewest powerplays used
+      TB5     : head-to-head (2-player ties only; 3+ keep TB1-4 order, sequential ranks)
+      TB6     : joint winners (shared rank) — only when 2-player H2H is exactly equal
+    """
+    ranked = sorted(
+        scores.values(),
+        key=lambda x: (
+            -x['total'],
+             x['skipped'],
+            -x['won'],
+            -x['matches_won'],
+             x['powerups_used'],
+        ),
+    )
+
+    # shared_rank_indices: positions that share the rank of their predecessor
+    # Only set for 2-player groups where H2H is exactly equal.
+    # 3+ player groups keep sequential ranks (TB1-4 order stands).
+    shared_rank_indices = set()
+
+    i = 0
+    while i < len(ranked):
+        j = i + 1
+        while j < len(ranked) and _tie_key(ranked[j]) == _tie_key(ranked[i]):
+            j += 1
+        if j - i == 2:
+            a, b = ranked[i], ranked[i + 1]
+            a_wins, b_wins = _head_to_head(a['username'], b['username'])
+            if b_wins > a_wins:
+                ranked[i], ranked[i + 1] = ranked[i + 1], ranked[i]
+            if a_wins == b_wins:
+                shared_rank_indices.add(i + 1)
+        i = j
+
+    # Assign ranks — competition / 1224 style
+    # rank = 1-indexed position, so two players at rank 1 make the next rank 3.
+    for i, entry in enumerate(ranked):
+        if i == 0:
+            entry['rank'] = 1
+        elif i in shared_rank_indices:
+            entry['rank'] = ranked[i - 1]['rank']
+        else:
+            entry['rank'] = i + 1
+
     return ranked
 
 
