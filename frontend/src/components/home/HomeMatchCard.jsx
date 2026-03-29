@@ -254,6 +254,14 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
               {match.status_text}
             </div>
           )}
+          {isLive && match.scores?.length > 0 && (
+            <div className="text-xs font-medium mt-0.5 text-red-700">
+              {match.scores.map((s, i) => {
+                const abbr = s.inning.split(' ').filter(w => /^[A-Z]/.test(w)).map(w => w[0]).join('').slice(0, 3)
+                return <span key={i}>{i > 0 ? ' · ' : ''}{abbr}: {s.r}/{s.w} ({s.o} ov)</span>
+              })}
+            </div>
+          )}
           {hasPick && !isCompleted && (
             <div className="text-xs font-medium mt-1 text-green-600">
               ✓ You picked {t1Picked ? match.team1?.name : match.team2?.name}
