@@ -71,21 +71,18 @@ class MatchViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def team_form(self, request, pk=None):
         """
-        Last 5 completed matches for each team in this match.
-        Returns form entries ordered oldest → newest.
-        Each entry: {result: 'W'|'L'|'N', opponent: str, date: iso}
+        For each team: last 5 form results + season stats in this tournament.
+        Also returns head-to-head history between the two teams in this tournament.
         """
         match = self.get_object()
+        tournament = match.tournament
 
         def get_form(team):
             if not team:
                 return []
             recent = (
                 Match.objects
-                .filter(
-                    Q(team1=team) | Q(team2=team),
-                    result__in=['team1', 'team2', 'NR'],
-                )
+                .filter(Q(team1=team) | Q(team2=team), result__in=['team1', 'team2', 'NR'])
                 .exclude(pk=match.pk)
                 .select_related('team1', 'team2')
                 .order_by('-datetime')[:5]
@@ -102,11 +99,56 @@ class MatchViewSet(viewsets.ModelViewSet):
                 form.append({'result': outcome, 'opponent': opponent, 'date': m.datetime.isoformat()})
             return form
 
+        def get_season_stats(team):
+            if not team:
+                return None
+            qs = Match.objects.filter(
+                Q(team1=team) | Q(team2=team),
+                result__in=['team1', 'team2', 'NR'],
+            )
+            won = qs.filter(
+                Q(result='team1', team1=team) | Q(result='team2', team2=team)
+            ).count()
+            lost = qs.filter(
+                Q(result='team1', team2=team) | Q(result='team2', team1=team)
+            ).count()
+            return {'played': won + lost, 'won': won, 'lost': lost}
+
+        def get_h2h():
+            if not match.team1 or not match.team2:
+                return []
+            qs = (
+                Match.objects
+                .filter(
+                    Q(team1=match.team1, team2=match.team2) | Q(team1=match.team2, team2=match.team1),
+                    result__in=['team1', 'team2', 'NR'],
+                )
+                .select_related('team1', 'team2')
+                .order_by('-datetime')
+            )
+            results = []
+            for m in qs:
+                if m.result == 'NR':
+                    winner = None
+                elif m.result == 'team1':
+                    winner = m.team1.name
+                else:
+                    winner = m.team2.name
+                results.append({
+                    'date': m.datetime.isoformat(),
+                    'description': m.description or '',
+                    'winner': winner,
+                })
+            return results
+
         return Response({
-            'team1': match.team1.name if match.team1 else None,
-            'team2': match.team2.name if match.team2 else None,
-            'team1_form': get_form(match.team1),
-            'team2_form': get_form(match.team2),
+            'team1':         match.team1.name if match.team1 else None,
+            'team2':         match.team2.name if match.team2 else None,
+            'team1_form':    get_form(match.team1),
+            'team2_form':    get_form(match.team2),
+            'team1_season':  get_season_stats(match.team1),
+            'team2_season':  get_season_stats(match.team2),
+            'h2h':           get_h2h(),
         })
 
     @action(detail=True, methods=['get'])

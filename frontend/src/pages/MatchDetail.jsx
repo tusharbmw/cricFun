@@ -124,29 +124,52 @@ export default function MatchDetail() {
         </div>
       )}
 
-      {form && (form.team1_form?.length > 0 || form.team2_form?.length > 0) && (
+      {form && (
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
-          <div className="p-4">
-            <h2 className="font-semibold text-gray-600 mb-3">Recent Form</h2>
-            <div className="space-y-3">
-              {[
-                { name: form.team1, entries: form.team1_form },
-                { name: form.team2, entries: form.team2_form },
-              ].map(({ name, entries }) => (
-                <div key={name} className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-gray-700 w-32 shrink-0 truncate">{name}</span>
-                  <div className="flex gap-1">
-                    {entries.map((e, i) => (
-                      <FormBadge key={i} result={e.result} opponent={e.opponent} />
-                    ))}
-                    {entries.length === 0 && (
-                      <span className="text-xs text-gray-400 italic">No recent matches</span>
-                    )}
-                  </div>
+          <div className="p-4 space-y-4">
+            <h2 className="font-semibold text-gray-600">Team Stats</h2>
+
+            {/* Season stats + form per team */}
+            {[
+              { name: form.team1, entries: form.team1_form, season: form.team1_season },
+              { name: form.team2, entries: form.team2_form, season: form.team2_season },
+            ].map(({ name, entries, season }) => (
+              <div key={name}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm font-medium text-gray-800">{name}</span>
+                  {season && (
+                    <span className="text-xs text-gray-400">
+                      {season.played} played · <span className="text-green-600 font-medium">{season.won}W</span> · <span className="text-red-500 font-medium">{season.lost}L</span>
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-            <p className="text-xs text-gray-400 mt-3">Hover badge to see opponent · W = Won · L = Lost · N = No Result</p>
+                <div className="flex gap-1">
+                  {entries?.length > 0
+                    ? entries.map((e, i) => <FormBadge key={i} result={e.result} opponent={e.opponent} />)
+                    : <span className="text-xs text-gray-400 italic">No matches yet this season</span>
+                  }
+                </div>
+              </div>
+            ))}
+
+            <p className="text-xs text-gray-400">Hover badge to see opponent · W = Won · L = Lost · N = No Result</p>
+
+            {/* Head-to-head */}
+            {form.h2h?.length > 0 && (
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-sm font-semibold text-gray-600 mb-2">Head-to-Head</p>
+                <div className="space-y-1.5">
+                  {form.h2h.map((m, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">{m.description}</span>
+                      <span className={`font-medium ${m.winner ? 'text-gray-700' : 'text-gray-400'}`}>
+                        {m.winner ? `${m.winner} won` : 'No result'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
