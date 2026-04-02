@@ -198,7 +198,7 @@ export default function Leaderboard() {
                 return (
                   <tr key={row.username} className={isMe ? 'bg-primary/10' : ''}>
                     <td className="text-gray-400 font-medium">
-                      {i < 3 ? ['🥇','🥈','🥉'][i] : i + 1}
+                      {i < 3 ? ['🥇','🥈','🥉'][i] : i === board.length - 1 ? '🐢' : i + 1}
                     </td>
                     <td>
                       <span className={`font-medium ${isMe ? 'text-primary' : 'text-gray-800'}`}>
