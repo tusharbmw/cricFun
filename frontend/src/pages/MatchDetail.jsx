@@ -11,6 +11,22 @@ const POWERUP_META = {
   no_negative: { emoji: '🛡️', label: 'The Wall' },
 }
 
+function FormBadge({ result, opponent }) {
+  const styles = {
+    W: 'bg-green-100 text-green-700',
+    L: 'bg-red-100 text-red-700',
+    N: 'bg-yellow-100 text-yellow-700',
+  }
+  return (
+    <span
+      title={opponent}
+      className={`text-xs font-bold px-2 py-0.5 rounded ${styles[result] ?? 'bg-gray-100 text-gray-400'}`}
+    >
+      {result}
+    </span>
+  )
+}
+
 export default function MatchDetail() {
   const { id } = useParams()
 
@@ -25,6 +41,13 @@ export default function MatchDetail() {
     queryFn: () => matchesAPI.selections(id).then(r => r.data),
     enabled: !!match,
     refetchInterval: match?.result === 'IP' ? 30000 : false,
+  })
+
+  const { data: form } = useQuery({
+    queryKey: ['match', id, 'team_form'],
+    queryFn: () => matchesAPI.teamForm(id).then(r => r.data),
+    enabled: !!match,
+    staleTime: 10 * 60 * 1000,
   })
 
   if (isLoading) return <Spinner />
@@ -97,6 +120,33 @@ export default function MatchDetail() {
                 }
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {form && (form.team1_form?.length > 0 || form.team2_form?.length > 0) && (
+        <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
+          <div className="p-4">
+            <h2 className="font-semibold text-gray-600 mb-3">Recent Form</h2>
+            <div className="space-y-3">
+              {[
+                { name: form.team1, entries: form.team1_form },
+                { name: form.team2, entries: form.team2_form },
+              ].map(({ name, entries }) => (
+                <div key={name} className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-gray-700 w-32 shrink-0 truncate">{name}</span>
+                  <div className="flex gap-1">
+                    {entries.map((e, i) => (
+                      <FormBadge key={i} result={e.result} opponent={e.opponent} />
+                    ))}
+                    {entries.length === 0 && (
+                      <span className="text-xs text-gray-400 italic">No recent matches</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-3">Hover badge to see opponent · W = Won · L = Lost · N = No Result</p>
           </div>
         </div>
       )}

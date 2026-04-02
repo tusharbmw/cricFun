@@ -205,6 +205,18 @@ export default function Leaderboard() {
                         {row.display_name || row.username}
                       </span>
                       {isMe && <span className="ml-1 text-xs text-gray-400">(you)</span>}
+                      {row.streak?.length > 0 && (
+                        <div className="flex gap-0.5 mt-0.5">
+                          {row.streak.map((s, idx) => (
+                            <span key={idx} className={`text-[9px] font-bold px-1 py-px rounded ${
+                              s === 'W' ? 'bg-green-100 text-green-700' :
+                              s === 'L' ? 'bg-red-100 text-red-700' :
+                              s === 'N' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-400'
+                            }`}>{s}</span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="text-right text-success">{row.won ?? 0}</td>
                     <td className="text-right text-error">{row.lost ?? 0}</td>

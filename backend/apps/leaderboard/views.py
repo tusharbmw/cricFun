@@ -251,8 +251,10 @@ def take_snapshot(match_id):
         defaults={'rankings': snapshot_data},
     )
 
-    # Refresh Redis cache
-    cache.set(CACHE_KEY_LEADERBOARD, ranked, timeout=CACHE_TTL)
+    # Refresh Redis cache (include streaks so live leaderboard is consistent)
+    streaks = compute_streaks()
+    ranked_with_streaks = [{**e, 'streak': streaks.get(e['username'], [])} for e in ranked]
+    cache.set(CACHE_KEY_LEADERBOARD, ranked_with_streaks, timeout=CACHE_TTL)
     logger.info('take_snapshot: saved snapshot + cache refreshed for match %s', match_id)
 
     # Fire rank-change notification only on the FIRST snapshot for this match.
@@ -269,11 +271,75 @@ def take_snapshot(match_id):
         )
 
 
+def compute_streaks():
+    """
+    Return {username: ['W','L','S','N', ...]} for each active user.
+    Each entry represents one of their last 5 completed matches (oldest → newest).
+      W = picked the winner
+      L = picked the loser
+      S = skipped (no pick placed)
+      N = no result / rain
+    Cancelled matches are excluded — they don't count toward the 5.
+    """
+    recent_matches = list(
+        Match.objects.filter(
+            Q(result='team1') | Q(result='team2') | Q(result='NR')
+        ).order_by('-datetime')[:5]
+    )
+    if not recent_matches:
+        return {}
+
+    # winner team pk per match (None = NR)
+    winner_map = {}
+    for m in recent_matches:
+        if m.result == 'team1':
+            winner_map[m.id] = m.team1_id
+        elif m.result == 'team2':
+            winner_map[m.id] = m.team2_id
+        else:
+            winner_map[m.id] = None
+
+    # picks indexed by (match_id, username) → selected team pk
+    picks = {}
+    for s in (
+        Selection.objects
+        .filter(match__in=recent_matches)
+        .select_related('user')
+        .values('match_id', 'user__username', 'selection_id')
+    ):
+        picks[(s['match_id'], s['user__username'])] = s['selection_id']
+
+    usernames = list(User.objects.filter(is_active=True).values_list('username', flat=True))
+
+    streaks = {}
+    for username in usernames:
+        streak = []
+        # recent_matches is desc (newest first) — matches display order
+        for m in recent_matches:
+            winner_team_id = winner_map[m.id]
+            if winner_team_id is None:
+                streak.append('N')
+            else:
+                pick = picks.get((m.id, username))
+                if pick is None:
+                    streak.append('S')
+                elif pick == winner_team_id:
+                    streak.append('W')
+                else:
+                    streak.append('L')
+        streaks[username] = streak
+
+    return streaks
+
+
 def get_cached_leaderboard():
     """Return ranked leaderboard list from Redis. Recompute + cache on miss."""
     ranked = cache.get(CACHE_KEY_LEADERBOARD)
     if ranked is None:
         ranked = _build_ranked_list(calculate_scores())
+        streaks = compute_streaks()
+        for entry in ranked:
+            entry['streak'] = streaks.get(entry['username'], [])
         cache.set(CACHE_KEY_LEADERBOARD, ranked, timeout=CACHE_TTL)
     return ranked
 

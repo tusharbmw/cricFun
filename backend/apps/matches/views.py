@@ -69,6 +69,47 @@ class MatchViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=['get'])
+    def team_form(self, request, pk=None):
+        """
+        Last 5 completed matches for each team in this match.
+        Returns form entries ordered oldest → newest.
+        Each entry: {result: 'W'|'L'|'N', opponent: str, date: iso}
+        """
+        match = self.get_object()
+
+        def get_form(team):
+            if not team:
+                return []
+            recent = (
+                Match.objects
+                .filter(
+                    Q(team1=team) | Q(team2=team),
+                    result__in=['team1', 'team2', 'NR'],
+                )
+                .exclude(pk=match.pk)
+                .select_related('team1', 'team2')
+                .order_by('-datetime')[:5]
+            )
+            form = []
+            for m in recent:
+                opponent = m.team2.name if m.team1 == team else m.team1.name
+                if m.result == 'NR':
+                    outcome = 'N'
+                elif (m.result == 'team1' and m.team1 == team) or (m.result == 'team2' and m.team2 == team):
+                    outcome = 'W'
+                else:
+                    outcome = 'L'
+                form.append({'result': outcome, 'opponent': opponent, 'date': m.datetime.isoformat()})
+            return form
+
+        return Response({
+            'team1': match.team1.name if match.team1 else None,
+            'team2': match.team2.name if match.team2 else None,
+            'team1_form': get_form(match.team1),
+            'team2_form': get_form(match.team2),
+        })
+
+    @action(detail=True, methods=['get'])
     def selections(self, request, pk=None):
         """
         Show all selections for a match.
