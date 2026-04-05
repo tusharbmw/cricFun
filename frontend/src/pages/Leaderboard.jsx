@@ -3,6 +3,7 @@ import {
   CartesianGrid, Line, LineChart, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from 'recharts'
+import { TrendingUp, TrendingDown, MoveHorizontal } from 'lucide-react'
 import { leaderboardAPI } from '@/api/leaderboard'
 import useAuthStore from '@/store/authStore'
 import Spinner from '@/components/ui/Spinner'
@@ -198,7 +199,12 @@ export default function Leaderboard() {
                 return (
                   <tr key={row.username} className={isMe ? 'bg-primary/10' : ''}>
                     <td className="text-gray-400 font-medium">
-                      {i < 3 ? ['🥇','🥈','🥉'][i] : i === board.length - 1 ? '🐢' : i + 1}
+                      <div className="flex items-center gap-0.5">
+                        <span>{i < 3 ? ['🥇','🥈','🥉'][i] : i === board.length - 1 ? '🐢' : i + 1}</span>
+                        {row.rank_change === 'up'   && <TrendingUp size={12} className="text-green-500" />}
+                        {row.rank_change === 'down' && <TrendingDown size={12} className="text-red-400" />}
+                        {row.rank_change === 'same' && <MoveHorizontal size={12} className="text-gray-300" />}
+                      </div>
                     </td>
                     <td>
                       <span className={`font-medium ${isMe ? 'text-primary' : 'text-gray-800'}`}>

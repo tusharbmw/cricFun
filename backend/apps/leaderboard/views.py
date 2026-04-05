@@ -251,10 +251,12 @@ def take_snapshot(match_id):
         defaults={'rankings': snapshot_data},
     )
 
-    # Refresh Redis cache (include streaks so live leaderboard is consistent)
+    # Refresh Redis cache (include streaks + rank changes)
     streaks = compute_streaks()
-    ranked_with_streaks = [{**e, 'streak': streaks.get(e['username'], [])} for e in ranked]
-    cache.set(CACHE_KEY_LEADERBOARD, ranked_with_streaks, timeout=CACHE_TTL)
+    for e in ranked:
+        e['streak'] = streaks.get(e['username'], [])
+    _attach_rank_changes(ranked)
+    cache.set(CACHE_KEY_LEADERBOARD, ranked, timeout=CACHE_TTL)
     logger.info('take_snapshot: saved snapshot + cache refreshed for match %s', match_id)
 
     # Fire rank-change notification only on the FIRST snapshot for this match.
@@ -332,6 +334,34 @@ def compute_streaks():
     return streaks
 
 
+def _attach_rank_changes(ranked):
+    """
+    Add 'rank_change' to each entry: 'up', 'down', 'same', or 'new'.
+    Compares current ranks against the second-to-last snapshot so the arrows
+    show movement from the previous match result to the current standings.
+    """
+    from apps.leaderboard.models import LeaderboardSnapshot
+    try:
+        snaps = LeaderboardSnapshot.objects.order_by('-match__datetime')[:2]
+        snaps = list(snaps)
+        prev = snaps[1] if len(snaps) >= 2 else snaps[0]
+        prev_ranks = {r['username']: r['rank'] for r in (prev.rankings or [])}
+    except (LeaderboardSnapshot.DoesNotExist, IndexError):
+        prev_ranks = {}
+
+    for entry in ranked:
+        prev_rank = prev_ranks.get(entry['username'])
+        if prev_rank is None:
+            entry['rank_change'] = 'new'
+        elif entry['rank'] < prev_rank:
+            entry['rank_change'] = 'up'
+        elif entry['rank'] > prev_rank:
+            entry['rank_change'] = 'down'
+        else:
+            entry['rank_change'] = 'same'
+    return ranked
+
+
 def get_cached_leaderboard():
     """Return ranked leaderboard list from Redis. Recompute + cache on miss."""
     ranked = cache.get(CACHE_KEY_LEADERBOARD)
@@ -340,6 +370,7 @@ def get_cached_leaderboard():
         streaks = compute_streaks()
         for entry in ranked:
             entry['streak'] = streaks.get(entry['username'], [])
+        _attach_rank_changes(ranked)
         cache.set(CACHE_KEY_LEADERBOARD, ranked, timeout=CACHE_TTL)
     return ranked
 

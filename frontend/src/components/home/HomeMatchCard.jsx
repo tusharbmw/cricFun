@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { matchesAPI } from '@/api/matches'
 import { picksAPI } from '@/api/picks'
 import PickDistribution from './PickDistribution'
+import { useCountdown } from '@/hooks/useCountdown'
 
 const POWERUP_META = {
   hidden:      { emoji: '🕵️', label: 'Hidden',  key: 'hidden_count',      suffix: 'from others' },
@@ -48,6 +49,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now()
   const dt = new Date(match.datetime)
+  const countdown = useCountdown(match.datetime)
   const pickWindowMs = (stats?.pick_window_days ?? 5) * 24 * 60 * 60 * 1000
 
   const isCompleted = ['team1', 'team2', 'NR'].includes(match.result)
@@ -249,7 +251,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
           <div className="text-xs text-gray-500">{format(dt, 'EEE d MMM · h:mm a')} · {match.venue}</div>
           {isUrgent && (
             <div className="text-xs font-medium mt-1" style={{ color: '#f59e0b' }}>
-              ⏰ Locks in {Math.ceil((dt.getTime() - now) / 3600000)}h
+              ⏰ {countdown}
             </div>
           )}
           {/* Live score / match result summary */}
