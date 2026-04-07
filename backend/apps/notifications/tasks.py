@@ -40,7 +40,9 @@ def notify_pick_result(selection_id, match_id):
         else:
             message = f'❌ Wrong pick. {winner.name} won.'
     else:
-        message = f'Match result recorded.'
+        t1 = match.team1.name if match.team1 else '?'
+        t2 = match.team2.name if match.team2 else '?'
+        message = f'🌧️ No result — {t1} vs {t2}. No points affected.'
 
     Notification.objects.create(
         user=sel.user,

@@ -145,10 +145,11 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   // Team display state
   const t1Picked = hasPick && !showChangePick && (myPickId ? myPickId === match.team1?.id : myPickName === match.team1?.name)
   const t2Picked = hasPick && !showChangePick && (myPickId ? myPickId === match.team2?.id : myPickName === match.team2?.name)
+  const isNR = match.result === 'NR'
   const t1Won = isCompleted && match.result === 'team1'
   const t2Won = isCompleted && match.result === 'team2'
-  const t1Lost = isCompleted && t1Picked && !userWon
-  const t2Lost = isCompleted && t2Picked && !userWon
+  const t1Lost = isCompleted && !isNR && t1Picked && !userWon
+  const t2Lost = isCompleted && !isNR && t2Picked && !userWon
   // Winner that I didn't pick — show differently from "my pick won"
   const t1WinnerNotPicked = t1Won && !t1Picked
   const t2WinnerNotPicked = t2Won && !t2Picked
@@ -170,7 +171,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
           <div className="flex items-center gap-2 flex-wrap">
             <StateBadge
               isCompleted={isCompleted} isLive={isLive} isUrgent={isUrgent}
-              hasPick={hasPick} userWon={userWon}
+              hasPick={hasPick} userWon={userWon} result={match.result}
             />
             <span className="text-xs text-gray-400">{match.description}</span>
             {isApplying && <span className="loading loading-spinner loading-xs text-primary" />}
@@ -403,7 +404,8 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   )
 }
 
-function StateBadge({ isCompleted, isLive, isUrgent, hasPick, userWon }) {
+function StateBadge({ isCompleted, isLive, isUrgent, hasPick, userWon, result }) {
+  if (isCompleted && result === 'NR') return <span className="text-xs font-medium px-2.5 py-1 rounded-xl bg-gray-100 text-gray-500">NO RESULT</span>
   if (isCompleted && hasPick) {
     return userWon
       ? <span className="text-xs font-bold px-2.5 py-1 rounded-xl" style={{ background: '#EAF3DE', color: '#27500A' }}>✓ WON</span>
