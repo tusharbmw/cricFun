@@ -62,7 +62,7 @@ jobs:
 
             echo "--- Building frontend ---"
             cd frontend
-            npm ci --silent
+            npm ci
             npm run build
             cd ..
 
