@@ -30,7 +30,7 @@ class SelectionInline(admin.TabularInline):
 
 @admin.register(Match)
 class MatchAdmin(admin.ModelAdmin):
-    list_display    = ['__str__', 'result', 'datetime', 'match_points', 'venue', 'tournament']
+    list_display    = ['__str__', 'result', 'datetime', 'match_points', 'venue', 'match_id']
     list_filter     = ['result', 'tournament']
     search_fields   = ['description', 'team1__name', 'team2__name']
     readonly_fields = ['created_at', 'updated_at']

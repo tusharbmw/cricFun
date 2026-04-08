@@ -156,6 +156,7 @@ def fetch_upcoming_matches():
         return 'no data'
 
     added = 0
+    updated_ids = 0
     for md in matches_data:
         try:
             match_dt = datetime.strptime(
@@ -164,9 +165,22 @@ def fetch_upcoming_matches():
 
             if match_dt < now:
                 continue
-            if Match.objects.filter(
-                Q(match_id=md['match_id']) | Q(datetime=match_dt)
-            ).exists():
+
+            # Check if a TBD match exists for this datetime with a different match_id
+            # (CricAPI can reassign IDs for upcoming matches mid-series)
+            existing = Match.objects.filter(datetime=match_dt, result='TBD').first()
+            if existing:
+                if existing.match_id != md['match_id']:
+                    existing.match_id = md['match_id']
+                    existing.save(update_fields=['match_id'])
+                    updated_ids += 1
+                    logger.info(
+                        'Updated match_id for %s @ %s: %s → %s',
+                        existing.description, match_dt, existing.match_id, md['match_id'],
+                    )
+                continue
+
+            if Match.objects.filter(match_id=md['match_id']).exists():
                 continue
 
             team1, _ = Team.objects.get_or_create(
@@ -201,7 +215,7 @@ def fetch_upcoming_matches():
         except Exception as exc:
             logger.error('Error adding match %s: %s', md.get('match_id'), exc)
 
-    return f'{added} new matches added'
+    return f'{added} new matches added; {updated_ids} match_ids updated'
 
 
 @shared_task
