@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { matchesAPI } from '@/api/matches'
@@ -11,19 +12,61 @@ const POWERUP_META = {
   no_negative: { emoji: '🛡️', label: 'The Wall' },
 }
 
-function FormBadge({ result, opponent }) {
+function FormBadge({ result, opponent, isOpen, onToggle }) {
   const styles = {
     W: 'bg-green-100 text-green-700',
     L: 'bg-red-100 text-red-700',
     N: 'bg-yellow-100 text-yellow-700',
   }
   return (
-    <span
-      title={opponent}
-      className={`text-xs font-bold px-2 py-0.5 rounded ${styles[result] ?? 'bg-gray-100 text-gray-400'}`}
-    >
-      {result}
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`text-xs font-bold px-2 py-0.5 rounded cursor-pointer ${styles[result] ?? 'bg-gray-100 text-gray-400'}`}
+      >
+        {result}
+      </button>
+      {isOpen && opponent && (
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 whitespace-nowrap rounded bg-gray-800 text-white text-xs px-2 py-1 z-10 pointer-events-none">
+          {opponent}
+        </span>
+      )}
     </span>
+  )
+}
+
+function FormRow({ entries }) {
+  const [openIdx, setOpenIdx] = useState(null)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpenIdx(null)
+    }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('touchstart', handler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('touchstart', handler)
+    }
+  }, [])
+
+  return (
+    <div ref={ref} className="flex gap-1 flex-wrap">
+      {entries?.length > 0
+        ? entries.map((e, i) => (
+            <FormBadge
+              key={i}
+              result={e.result}
+              opponent={e.opponent}
+              isOpen={openIdx === i}
+              onToggle={() => setOpenIdx(openIdx === i ? null : i)}
+            />
+          ))
+        : <span className="text-xs text-gray-400 italic">No matches yet this season</span>
+      }
+    </div>
   )
 }
 
@@ -120,6 +163,13 @@ export default function MatchDetail() {
                 }
               </div>
             </div>
+            {Object.keys(sel.powerups ?? {}).length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-1">
+                {Object.values(POWERUP_META).map(({ emoji, label }) => (
+                  <span key={label} className="text-xs text-gray-400">{emoji} {label}</span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -143,16 +193,11 @@ export default function MatchDetail() {
                     </span>
                   )}
                 </div>
-                <div className="flex gap-1">
-                  {entries?.length > 0
-                    ? entries.map((e, i) => <FormBadge key={i} result={e.result} opponent={e.opponent} />)
-                    : <span className="text-xs text-gray-400 italic">No matches yet this season</span>
-                  }
-                </div>
+                <FormRow entries={entries} />
               </div>
             ))}
 
-            <p className="text-xs text-gray-400">Hover badge to see opponent · W = Won · L = Lost · N = No Result</p>
+            <p className="text-xs text-gray-400">Tap badge to see opponent · W = Won · L = Lost · N = No Result</p>
 
             {/* Head-to-head */}
             {form.h2h?.length > 0 && (

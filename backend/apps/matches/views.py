@@ -105,14 +105,15 @@ class MatchViewSet(viewsets.ModelViewSet):
             qs = Match.objects.filter(
                 Q(team1=team) | Q(team2=team),
                 result__in=['team1', 'team2', 'NR'],
-            )
+            ).exclude(pk=match.pk)
             won = qs.filter(
                 Q(result='team1', team1=team) | Q(result='team2', team2=team)
             ).count()
             lost = qs.filter(
                 Q(result='team1', team2=team) | Q(result='team2', team1=team)
             ).count()
-            return {'played': won + lost, 'won': won, 'lost': lost}
+            nr = qs.filter(result='NR').count()
+            return {'played': won + lost + nr, 'won': won, 'lost': lost}
 
         def get_h2h():
             if not match.team1 or not match.team2:

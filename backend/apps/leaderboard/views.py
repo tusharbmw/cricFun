@@ -396,7 +396,15 @@ class LeaderboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(get_cached_leaderboard())
+        completed = Match.objects.filter(
+            Q(result='team1') | Q(result='team2') | Q(result='NR')
+        ).count()
+        total = Match.objects.exclude(result='CANC').count()
+        return Response({
+            'entries': get_cached_leaderboard(),
+            'matches_completed': completed,
+            'matches_total': total,
+        })
 
 
 class MyRankView(APIView):
