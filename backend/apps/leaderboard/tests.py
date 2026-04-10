@@ -110,9 +110,10 @@ def test_leaderboard_requires_auth(api_client):
 def test_leaderboard_returns_ranked_list(auth_client, user):
     response = auth_client.get(LEADERBOARD_URL)
     assert response.status_code == 200
-    assert isinstance(response.data, list)
+    assert 'entries' in response.data
+    assert isinstance(response.data['entries'], list)
     # Must include authenticated user
-    usernames = [e['username'] for e in response.data]
+    usernames = [e['username'] for e in response.data['entries']]
     assert user.username in usernames
 
 
@@ -128,7 +129,7 @@ def test_leaderboard_sorted_by_total_desc(db, auth_client, user, user2, team1, t
 
     response = auth_client.get(LEADERBOARD_URL)
     assert response.status_code == 200
-    totals = [e['total'] for e in response.data]
+    totals = [e['total'] for e in response.data['entries']]
     assert totals == sorted(totals, reverse=True)
 
 
