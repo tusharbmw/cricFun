@@ -26,5 +26,8 @@ django-redis==6.0.0
 # Web Push notifications
 pywebpush==2.0.0
 
+# Monitoring
+sentry-sdk[django,celery,redis]==2.27.0
+
 # Production server
 gunicorn==25.1.0
