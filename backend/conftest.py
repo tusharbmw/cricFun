@@ -17,12 +17,18 @@ def api_client():
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(username='testuser', password='testpass123')
+    u = User.objects.create_user(username='testuser', password='testpass123')
+    u.userprofile.approved = True
+    u.userprofile.save()
+    return u
 
 
 @pytest.fixture
 def user2(db):
-    return User.objects.create_user(username='testuser2', password='testpass123')
+    u = User.objects.create_user(username='testuser2', password='testpass123')
+    u.userprofile.approved = True
+    u.userprofile.save()
+    return u
 
 
 @pytest.fixture

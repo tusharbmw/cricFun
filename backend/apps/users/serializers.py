@@ -3,10 +3,18 @@ from rest_framework import serializers
 
 
 class UserSerializer(serializers.ModelSerializer):
+    is_approved = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'date_joined', 'is_staff']
-        read_only_fields = ['date_joined', 'is_staff']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'date_joined', 'is_staff', 'is_approved']
+        read_only_fields = ['date_joined', 'is_staff', 'is_approved']
+
+    def get_is_approved(self, obj):
+        try:
+            return obj.userprofile.approved
+        except Exception:
+            return False
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):

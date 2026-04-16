@@ -35,7 +35,7 @@ def calculate_scores(upto_match_id=None):
                                matches_won, matches_lost}}
     """
     scores = {}
-    for u in User.objects.filter(is_active=True):
+    for u in User.objects.filter(is_active=True, userprofile__approved=True):
         scores[u.username] = {
             'user_id':       u.id,
             'username':      u.username,
@@ -321,7 +321,7 @@ def compute_streaks():
     ):
         picks[(s['match_id'], s['user__username'])] = s['selection_id']
 
-    usernames = list(User.objects.filter(is_active=True).values_list('username', flat=True))
+    usernames = list(User.objects.filter(is_active=True, userprofile__approved=True).values_list('username', flat=True))
 
     streaks = {}
     for username in usernames:
