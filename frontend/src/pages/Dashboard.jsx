@@ -145,7 +145,7 @@ export default function Dashboard() {
           </div>
 
           {/* Mobile boosters card — sticky below header */}
-          {stats && !stats.powerups_disabled && (
+          {stats && (
             <div className="lg:hidden sticky top-16 z-40 bg-white rounded-xl border border-gray-100 shadow-md py-2.5 px-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-gray-500 shrink-0">

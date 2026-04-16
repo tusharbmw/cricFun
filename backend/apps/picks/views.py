@@ -12,18 +12,9 @@ from .serializers import SelectionSerializer, PowerupSerializer, PowerupStatsSer
 # Powerup budget per season (5 of each)
 POWERUP_BUDGET = 5
 
-# Match types where powerups are auto-applied as hidden
-AUTO_HIDE_TYPES = {'Final', 'Semi Final', 'Qualifier 1', 'Qualifier 2', 'Eliminator', 'Super 8'}
-
-# Whether powerups are currently disabled (playoffs override)
-POWERUPS_DISABLED = False  # Set True during playoffs
-
 
 def get_powerup_stats(user):
     """Return remaining powerup counts for a user."""
-    if POWERUPS_DISABLED:
-        return {'hidden_count': 0, 'fake_count': 0, 'no_negative_count': 0, 'powerups_disabled': True}
-
     counts = {'hidden': 0, 'fake': 0, 'no_negative': 0}
     for s in Selection.objects.filter(user=user):
         if s.hidden:
@@ -37,7 +28,6 @@ def get_powerup_stats(user):
         'hidden_count': max(0, POWERUP_BUDGET - counts['hidden']),
         'fake_count': max(0, POWERUP_BUDGET - counts['fake']),
         'no_negative_count': max(0, POWERUP_BUDGET - counts['no_negative']),
-        'powerups_disabled': False,
     }
 
 
@@ -64,7 +54,7 @@ class SelectionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         match = serializer.validated_data['match']
-        hidden = match.description in AUTO_HIDE_TYPES
+        hidden = match.playoff
         serializer.save(user=self.request.user, hidden=hidden)
 
     def destroy(self, request, *args, **kwargs):
@@ -123,7 +113,7 @@ class SelectionViewSet(viewsets.ModelViewSet):
         """
         selection = self.get_object()
 
-        if POWERUPS_DISABLED:
+        if selection.match.playoff:
             return Response({'error': 'Powerups are disabled during playoffs.'}, status=400)
 
         serializer = PowerupSerializer(data=request.data)

@@ -75,7 +75,7 @@ export default function Sidebar({ myRank, stats, onDragStart, selectedBooster, o
       </div>
 
       {/* PowerPlays card */}
-      {stats && !stats.powerups_disabled && (
+      {stats && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <span className="text-[15px] font-medium text-gray-800">PowerPlays</span>

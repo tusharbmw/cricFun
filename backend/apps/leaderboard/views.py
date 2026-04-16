@@ -76,8 +76,18 @@ def calculate_scores(upto_match_id=None):
                     scores[s.user.username]['powerups_used'] += 1
 
         pickers = set(sel1 + sel2)
-        for username in scores:
-            if username not in pickers:
+        non_pickers = [u for u in scores if u not in pickers]
+
+        if mr.playoff:
+            # Playoff: non-pickers are assigned to the losing side as a penalty.
+            # They don't count toward the skip limit but lose points as if they
+            # had picked the loser. Winners also gain from the larger losing pool.
+            if mr.result == 'team1':
+                sel2 = sel2 + non_pickers  # team2 lost
+            else:
+                sel1 = sel1 + non_pickers  # team1 lost
+        else:
+            for username in non_pickers:
                 scores[username]['skipped'] += 1
 
         if mr.result == 'team1':

@@ -61,7 +61,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
 
   const hasPick = !!pick
   const powerup = pick?.hidden ? 'hidden' : pick?.fake ? 'fake' : pick?.no_negative ? 'no_negative' : null
-  const powersDisabled = stats?.powerups_disabled ?? true
+  const powersDisabled = match.playoff
 
   // Support both active picks (pick.selection = team ID) and history picks (pick.selected_team_name)
   const myPickId = pick?.selection ?? null

@@ -114,7 +114,7 @@ export default function Profile() {
       </div>
 
       {/* Powerups */}
-      {stats && !stats.powerups_disabled && (
+      {stats && (
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
           <div className="p-4">
             <h2 className="font-semibold text-gray-600 mb-3 text-sm uppercase tracking-wider">PowerPlays remaining</h2>

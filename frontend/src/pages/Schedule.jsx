@@ -53,7 +53,7 @@ function MatchPickRow({ match, existingPick, stats }) {
 
   const hasPick = selected !== null
   const hasPowerup = existingPick?.hidden || existingPick?.fake || existingPick?.no_negative
-  const powerupsDisabled = stats?.powerups_disabled ?? true
+  const powerupsDisabled = match.playoff
   const appliedPowerup = existingPick?.hidden ? 'hidden' : existingPick?.fake ? 'fake' : existingPick?.no_negative ? 'no_negative' : null
 
   const countdown = useCountdown(match.datetime)
@@ -358,7 +358,7 @@ export default function Schedule() {
         )}
       </div>
 
-      {stats && !stats.powerups_disabled && (
+      {stats && (
         <div className="stats stats-horizontal bg-gray-50 shadow w-full">
           {[
             { key: 'hidden_count',      emoji: '🕵️', label: 'Hidden' },

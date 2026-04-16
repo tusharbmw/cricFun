@@ -208,6 +208,7 @@ def fetch_upcoming_matches():
                 datetime=match_dt,
                 tournament=md['tournament'],
                 match_points=_decide_match_weight(md['Description']),
+                playoff=_is_playoff(md['Description']),
             )
             added += 1
             logger.info('Added match: %s vs %s @ %s', md['Team1'], md['Team2'], match_dt)
@@ -238,3 +239,7 @@ def _decide_match_weight(description: str) -> int:
     if description == 'Eliminator':
         return 2
     return 1
+
+
+def _is_playoff(description: str) -> bool:
+    return _decide_match_weight(description) > 1
