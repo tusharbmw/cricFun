@@ -65,5 +65,10 @@ LOGGING = {
             'level': 'ERROR',
             'propagate': False,
         },
+        'django.security.DisallowedHost': {
+            'handlers': ['file'],
+            'level': 'CRITICAL',  # effectively silences WARNING/ERROR noise from bots
+            'propagate': False,
+        },
     },
 }
