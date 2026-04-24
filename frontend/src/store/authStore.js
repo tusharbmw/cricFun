@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import * as Sentry from '@sentry/react'
+import posthog from '@/lib/posthog'
 import { authAPI } from '@/api/auth'
 
 const useAuthStore = create((set) => ({
@@ -13,6 +14,7 @@ const useAuthStore = create((set) => ({
     try {
       const { data } = await authAPI.me()
       Sentry.setUser({ id: data.id, username: data.username })
+      posthog.identify(data.username, { email: data.email, is_approved: data.is_approved })
       set({ user: data, isAuthenticated: true, isLoading: false })
     } catch {
       localStorage.removeItem('access_token')
@@ -27,6 +29,7 @@ const useAuthStore = create((set) => ({
     localStorage.setItem('refresh_token', data.refresh)
     const { data: user } = await authAPI.me()
     Sentry.setUser({ id: user.id, username: user.username })
+    posthog.identify(user.username, { email: user.email, is_approved: user.is_approved })
     set({ user, isAuthenticated: true })
     return user
   },
@@ -39,6 +42,7 @@ const useAuthStore = create((set) => ({
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     Sentry.setUser(null)
+    posthog.reset()
     set({ user: null, isAuthenticated: false })
   },
 

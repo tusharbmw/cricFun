@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import posthog from '@/lib/posthog'
 import useAuthStore from '@/store/authStore'
 import Layout from '@/components/layout/Layout'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
@@ -24,6 +25,14 @@ const queryClient = new QueryClient({
   },
 })
 
+function PageViewTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    posthog.capture('$pageview', { $current_url: window.location.href })
+  }, [location.pathname])
+  return null
+}
+
 function AppRoutes() {
   const init = useAuthStore(s => s.init)
 
@@ -33,6 +42,7 @@ function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="*" element={<PageViewTracker />} />
       <Route path="/login" element={<Login />} />
       <Route path="/auth/callback/" element={<SocialCallback />} />
       <Route path="/tushar" element={<Portfolio />} />
