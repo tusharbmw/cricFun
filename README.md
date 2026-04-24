@@ -14,6 +14,7 @@ A cricket prediction game for friends — pick match winners, apply powerups, an
 | Auth | JWT (djangorestframework-simplejwt) + Google OAuth |
 | Charts | Recharts |
 | Server | Gunicorn + Nginx |
+| Monitoring | Sentry (separate Django + React projects) |
 | CI/CD | GitHub Actions |
 
 ## Project Structure
@@ -97,6 +98,10 @@ DB_HOST=...
 DB_PORT=1521
 CRICKET_API_KEY=...
 REDIS_URL=redis://localhost:6379/0
+
+# Sentry — leave blank to disable (create two separate projects at sentry.io)
+SENTRY_DSN=           # Django (Python) project DSN
+VITE_SENTRY_DSN=      # React (JavaScript) project DSN — baked in at build time
 ```
 
 ## API
@@ -128,21 +133,23 @@ Deploy to production by merging to `main` — GitHub Actions runs lint, tests, b
 ## Features
 
 - **Match schedule** — pick a team to win before the pick window closes; countdown timer per match
-- **Powerups** — Hidden (hide your pick from others), Googly (show opponents a fake pick), The Wall (no negative points if wrong); 5 of each per season
-- **Playoff auto-hide** — picks on Semi-finals, Qualifiers, and Finals are automatically hidden
+- **Powerups** — Hidden (hide your pick from others), Googly (show opponents a fake pick), The Wall (no negative points if wrong); 5 of each per season; disabled automatically for playoff matches
+- **Playoff matches** — Semi-finals, Qualifiers, and Finals are flagged as `playoff=True` at creation; picks are auto-hidden, powerups are blocked, and non-pickers are assigned to the losing side as a penalty instead of counting as a skip
+- **Pending approval** — new users start unapproved; they can browse and make picks but are excluded from the leaderboard and match selections until an admin approves them
 - **Smart API polling** — CricAPI budget-aware; poll interval scales from 3 min (plenty of budget) to 30 min (low budget); circuit breaker at ≤3 remaining calls
 - **Leaderboard** — standings table with W/L/skip counts + rank and points progression charts across all matches
 - **Leaderboard snapshots** — leaderboard state saved to DB after every match result; Redis-cached for fast serving
 - **In-app notifications** — rank-change alerts when #1 changes; missing-pick badge on bell icon
 - **Results** — completed matches with all user picks and outcomes visible
-- **Admin tools** — pause CricAPI, backfill snapshots, API quota counter, send notifications to all users
+- **Admin tools** — pause CricAPI, backfill snapshots, API quota counter, send notifications to all users, approve/revoke new users
 - **Rules** — full scoring, powerup, and tiebreaker rules; pick window dynamically reflects admin setting
+- **Monitoring** — Sentry error tracking on both backend (Django) and frontend (React)
 
 ## Testing
 
 ```bash
 cd backend
-pytest apps/picks/tests.py apps/leaderboard/tests.py apps/notifications/tests.py -v
+python -m pytest teams/tests.py apps/picks/tests.py apps/leaderboard/tests.py apps/notifications/tests.py -v
 ```
 
 Test settings use SQLite in-memory (`config.settings.test`) — no Oracle needed.
@@ -150,10 +157,12 @@ Test settings use SQLite in-memory (`config.settings.test`) — no Oracle needed
 ## Status
 
 Live in production. All core features shipped:
-- Pick placement with powerups and playoff auto-hide
-- Scoring engine with skip/disqualification logic
+- Pick placement with powerups and playoff rules
+- Scoring engine with skip/disqualification and playoff penalty logic
 - Leaderboard with DB-backed history snapshots and progression charts
 - In-app notifications for rank changes
 - CricAPI live score polling with budget management
 - Google OAuth login
 - PWA-ready (installable on mobile)
+- Sentry monitoring on backend and frontend
+- Pending-approval gate for new users
