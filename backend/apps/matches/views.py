@@ -169,7 +169,7 @@ class MatchViewSet(viewsets.ModelViewSet):
         hidden_count = 0
         powerups = {}  # {username: 'hidden'|'fake'|'no_negative'} — only populated when locked
 
-        for s in match.selection_set.select_related('user', 'selection').all():
+        for s in match.selection_set.select_related('user', 'selection', 'user__userprofile').filter(user__userprofile__approved=True):
             is_own = s.user_id == request.user.id
 
             if not is_locked and not is_own:
