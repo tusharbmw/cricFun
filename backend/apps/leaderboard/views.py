@@ -244,19 +244,28 @@ def take_snapshot(match_id):
         for e in ranked
     ]
 
-    # Detect rank-1 change by comparing against the previous match's snapshot.
-    # Must be done before update_or_create so we get the true "before" state.
+    # Determine the leader before this snapshot is written.
+    # For a first-time snapshot: compare against the previous match's snapshot.
+    # For a correction/re-run: compare against the snapshot already stored for
+    # this match (so a result change from NR → team1 fires correctly).
     prev_leader = None
     try:
-        prev = (LeaderboardSnapshot.objects
-                .filter(match__datetime__lt=match.datetime)
-                .latest('match__datetime'))
-        if prev.rankings:
-            prev_leader = prev.rankings[0]['username']
+        existing = LeaderboardSnapshot.objects.get(match=match)
+        # Snapshot exists — use its current leader as the "before" baseline
+        if existing.rankings:
+            prev_leader = existing.rankings[0]['username']
     except LeaderboardSnapshot.DoesNotExist:
-        pass
+        # First time for this match — fall back to the previous match's snapshot
+        try:
+            prev = (LeaderboardSnapshot.objects
+                    .filter(match__datetime__lt=match.datetime)
+                    .latest('match__datetime'))
+            if prev.rankings:
+                prev_leader = prev.rankings[0]['username']
+        except LeaderboardSnapshot.DoesNotExist:
+            pass
 
-    _, created = LeaderboardSnapshot.objects.update_or_create(
+    LeaderboardSnapshot.objects.update_or_create(
         match=match,
         defaults={'rankings': snapshot_data},
     )
@@ -269,12 +278,10 @@ def take_snapshot(match_id):
     cache.set(CACHE_KEY_LEADERBOARD, ranked, timeout=CACHE_TTL)
     logger.info('take_snapshot: saved snapshot + cache refreshed for match %s', match_id)
 
-    # Fire rank-change notification only on the FIRST snapshot for this match.
-    # update_or_create returns created=False on retries/re-runs, preventing
-    # duplicate notifications when take_snapshot is called multiple times for
-    # the same match (e.g. admin re-runs backfill or Celery retries).
+    # Fire notification if rank-1 changed. Works correctly for both first-time
+    # snapshots and result corrections (e.g. NR → team1 after a super over).
     new_leader = ranked[0]['username'] if ranked else None
-    if created and new_leader and new_leader != prev_leader:
+    if new_leader and new_leader != prev_leader:
         from apps.notifications.tasks import notify_rank_change
         notify_rank_change.delay(new_leader, match_id, prev_leader)
         logger.info(
