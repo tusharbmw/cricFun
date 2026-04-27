@@ -53,7 +53,7 @@ def notify_pick_result(selection_id, match_id):
 
     # Web Push
     for sub in PushSubscription.objects.filter(user=sel.user):
-        send_push_notification(sub, title='CricFun', body=message, url='/results')
+        send_push_notification(sub, title='CricFun', body=message, url='/results', tag=f'pick-result-{match_id}')
 
     logger.info('notify_pick_result: notified user %s for selection %s', sel.user_id, selection_id)
 
@@ -85,7 +85,7 @@ def notify_rank_change(new_leader, match_id, prev_leader=None):
     subs = PushSubscription.objects.filter(user__is_active=True).select_related('user')
     sent = 0
     for sub in subs:
-        if send_push_notification(sub, title='CricFun', body=message, url='/standings'):
+        if send_push_notification(sub, title='CricFun', body=message, url='/standings', tag='rank-change'):
             sent += 1
 
     logger.info(
@@ -114,7 +114,7 @@ def send_custom_notification(title, message, url, user_ids):
     subs = PushSubscription.objects.filter(user__in=users).select_related('user')
     sent = 0
     for sub in subs:
-        if send_push_notification(sub, title=title, body=message, url=url or '/'):
+        if send_push_notification(sub, title=title, body=message, url=url or '/'):  # no tag — admin messages always stack
             sent += 1
 
     logger.info('send_custom_notification: %d in-app + %d push sent', len(users), sent)
@@ -197,7 +197,8 @@ def send_pick_reminders():
                 body = f'{t1} vs {t2} — pick locks in {label}!'
 
                 if send_push_notification(
-                    sub, title='⏰ Pick Reminder', body=body, url='/schedule'
+                    sub, title='⏰ Pick Reminder', body=body, url='/schedule',
+                    tag=f'pick-reminder-{match.id}'
                 ):
                     cache.set(cache_key, 1, timeout=3 * 3600)
                     total_sent += 1

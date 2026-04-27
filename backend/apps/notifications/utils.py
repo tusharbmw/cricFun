@@ -10,7 +10,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
-def send_push_notification(subscription, title, body, url='/'):
+def send_push_notification(subscription, title, body, url='/', tag=None):
     """
     Send a push notification to one subscription.
     Deletes the subscription if it returns 404/410 (expired/unsubscribed).
@@ -34,7 +34,7 @@ def send_push_notification(subscription, title, body, url='/'):
                 'endpoint': subscription.endpoint,
                 'keys': {'p256dh': subscription.p256dh, 'auth': subscription.auth},
             },
-            data=json.dumps({'title': title, 'body': body, 'url': url}),
+            data=json.dumps({'title': title, 'body': body, 'url': url, 'tag': tag}),
             vapid_private_key=private_key,
             vapid_claims={'sub': f'mailto:{admin_email}'},
             ttl=3600,
