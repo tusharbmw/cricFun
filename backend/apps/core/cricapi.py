@@ -27,6 +27,7 @@ Dynamic poll-interval table (per call, 2 calls per poll with 2 live matches):
 """
 import json
 import logging
+import re
 import urllib.request
 
 from django.conf import settings
@@ -286,12 +287,24 @@ def get_match_info(match_id: str) -> dict:
         ttl    = MATCH_LIVE_TTL
     else:
         winner = match_data.get('matchWinner', '')
-        result = {
-            'winner':      winner if winner else 'No Winner',
-            'scores':      scores,
-            'status_text': status_text,
-        }
-        ttl = MATCH_COMPLETED_TTL
+        if winner and winner != 'No Winner':
+            # Normal completed match — real winner name returned by API
+            ttl = MATCH_COMPLETED_TTL
+        elif re.search(r'no result|abandoned', status_text, re.IGNORECASE):
+            # Genuine NR: rain, DLS, abandoned
+            winner = 'No Winner'
+            ttl    = MATCH_COMPLETED_TTL
+        else:
+            so_match = re.search(r'(.+?) won the Super Over', status_text, re.IGNORECASE)
+            if so_match:
+                # Super over complete — full team name is in the status text
+                winner = so_match.group(1).strip()
+                ttl    = MATCH_COMPLETED_TTL
+            else:
+                # Super over in progress or unknown state — keep polling
+                winner = 'IP'
+                ttl    = MATCH_LIVE_TTL
+        result = {'winner': winner, 'scores': scores, 'status_text': status_text}
 
     cache.set(cache_key, result, timeout=ttl)
     return result
