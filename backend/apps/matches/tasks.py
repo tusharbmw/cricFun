@@ -96,9 +96,9 @@ def update_live_scores(self):
 
             if winner == 'No Winner':
                 match.result = 'NR'
-            elif match.team1 and winner == match.team1.name:
+            elif match.team1 and winner in (match.team1.name, match.team1.description):
                 match.result = 'team1'
-            elif match.team2 and winner == match.team2.name:
+            elif match.team2 and winner in (match.team2.name, match.team2.description):
                 match.result = 'team2'
             else:
                 logger.warning(
