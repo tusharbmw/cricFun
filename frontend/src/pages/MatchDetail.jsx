@@ -12,18 +12,23 @@ const POWERUP_META = {
   no_negative: { emoji: '🛡️', label: 'The Wall' },
 }
 
-function FormBadge({ result, opponent, isOpen, onToggle }) {
+function FormBadge({ result, opponent, isOpen, onToggle, isRecent }) {
   const styles = {
     W: 'bg-green-100 text-green-700',
     L: 'bg-red-100 text-red-700',
     N: 'bg-yellow-100 text-yellow-700',
+  }
+  const recentBorder = {
+    W: 'ring-1 ring-green-400',
+    L: 'ring-1 ring-red-400',
+    N: 'ring-1 ring-yellow-400',
   }
   return (
     <span className="relative inline-block">
       <button
         type="button"
         onClick={onToggle}
-        className={`text-xs font-bold px-2 py-0.5 rounded cursor-pointer ${styles[result] ?? 'bg-gray-100 text-gray-400'}`}
+        className={`text-xs font-bold px-2 py-0.5 rounded cursor-pointer ${styles[result] ?? 'bg-gray-100 text-gray-400'} ${isRecent ? (recentBorder[result] ?? 'ring-1 ring-gray-400') : ''}`}
       >
         {result}
       </button>
@@ -62,6 +67,7 @@ function FormRow({ entries }) {
               opponent={e.opponent}
               isOpen={openIdx === i}
               onToggle={() => setOpenIdx(openIdx === i ? null : i)}
+              isRecent={i === 0}
             />
           ))
         : <span className="text-xs text-gray-400 italic">No matches yet this season</span>

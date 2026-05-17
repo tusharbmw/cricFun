@@ -154,9 +154,21 @@ function PointsProgressionChart({ history, currentUsername, displayNames }) {
     history.flatMap(snap => snap.rankings.map(r => r.username))
   )]
 
+  const DQ_SCORE = -999
+
+  // Compute scale from non-DQ values so disqualified players don't distort the axis
+  const allTotals = history.flatMap(snap =>
+    snap.rankings.map(r => r.total).filter(t => t !== DQ_SCORE)
+  )
+  const minVal = allTotals.length ? Math.min(...allTotals) : 0
+  const maxVal = allTotals.length ? Math.max(...allTotals) : 100
+  const range  = Math.max(maxVal - minVal, 20)
+  // DQ renders 20% below the chart floor so it's visually at the bottom
+  const dqY    = Math.round(minVal - range * 0.2)
+
   const chartData = history.map(snap => {
     const point = { label: snap.label, full_label: snap.full_label }
-    snap.rankings.forEach(r => { point[r.username] = r.total })
+    snap.rankings.forEach(r => { point[r.username] = r.total === DQ_SCORE ? dqY : r.total })
     return point
   })
 
@@ -174,12 +186,14 @@ function PointsProgressionChart({ history, currentUsername, displayNames }) {
             textAnchor="end"
           />
           <YAxis
+            domain={[dqY, maxVal + Math.round(range * 0.05)]}
             allowDecimals={false}
+            tickFormatter={v => v < minVal ? 'DQ' : v}
             tick={{ fontSize: 11, fill: '#6b7280' }}
             label={{ value: 'Points', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#9ca3af' }}
           />
           <Tooltip
-            formatter={(value, name) => [value, displayNames?.[name] || name]}
+            formatter={(value, name) => [value < minVal ? 'DQ' : value, displayNames?.[name] || name]}
             labelFormatter={(_, payload) => payload?.[0]?.payload?.full_label ?? ''}
             contentStyle={{ fontSize: 12 }}
           />
@@ -257,11 +271,11 @@ export default function Leaderboard() {
               <tr className="text-gray-500 text-xs uppercase tracking-wider">
                 <th className="w-10">#</th>
                 <th>Player</th>
+                <th className="text-right">Pts</th>
                 <th className="text-right">W</th>
                 <th className="text-right">L</th>
                 <th className="text-right">S</th>
                 <th className="text-right">MW</th>
-                <th className="text-right">Pts</th>
               </tr>
             </thead>
             <tbody>
@@ -291,16 +305,21 @@ export default function Leaderboard() {
                               s === 'L' ? 'bg-red-100 text-red-700' :
                               s === 'N' ? 'bg-yellow-100 text-yellow-700' :
                               'bg-gray-100 text-gray-400'
-                            }`}>{s}</span>
+                            } ${idx === 0 ? (
+                              s === 'W' ? 'ring-1 ring-green-400' :
+                              s === 'L' ? 'ring-1 ring-red-400' :
+                              s === 'N' ? 'ring-1 ring-yellow-400' :
+                              'ring-1 ring-gray-400'
+                            ) : ''}`}>{s}</span>
                           ))}
                         </div>
                       )}
                     </td>
+                    <td className="text-right font-bold text-gray-800">{row.total ?? 0}</td>
                     <td className="text-right text-success">{row.won ?? 0}</td>
                     <td className="text-right text-error">{row.lost ?? 0}</td>
                     <td className="text-right text-gray-400">{row.skipped ?? 0}</td>
                     <td className="text-right text-gray-600">{row.matches_won ?? 0}</td>
-                    <td className="text-right font-bold text-gray-800">{row.total ?? 0}</td>
                   </tr>
                 )
               })}
