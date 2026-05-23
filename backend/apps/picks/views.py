@@ -16,8 +16,8 @@ POWERUP_BUDGET = 5
 def get_powerup_stats(user):
     """Return remaining powerup counts for a user."""
     counts = {'hidden': 0, 'fake': 0, 'no_negative': 0}
-    for s in Selection.objects.filter(user=user):
-        if s.hidden:
+    for s in Selection.objects.filter(user=user).select_related('match'):
+        if s.hidden and not s.match.playoff:
             counts['hidden'] += 1
         if s.fake:
             counts['fake'] += 1
@@ -59,7 +59,8 @@ class SelectionViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         obj = self.get_object()
-        if obj.hidden or obj.fake or obj.no_negative:
+        has_user_powerup = (obj.hidden and not obj.match.playoff) or obj.fake or obj.no_negative
+        if has_user_powerup:
             return Response(
                 {'error': "Cannot remove a pick with a powerup applied."},
                 status=status.HTTP_400_BAD_REQUEST
