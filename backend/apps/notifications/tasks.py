@@ -209,3 +209,80 @@ def send_pick_reminders():
 
     logger.info('send_pick_reminders: %d push notifications sent', total_sent)
     return {'sent': total_sent}
+
+
+@shared_task
+def notify_personal_rank_changes(changes, match_id):
+    """
+    Notify each user whose rank moved after a match result.
+    changes: [{'user_id': int, 'old_rank': int, 'new_rank': int, 'moved_up': bool}]
+    """
+    from django.contrib.auth.models import User
+    from apps.notifications.models import Notification, PushSubscription
+    from apps.notifications.utils import send_push_notification
+
+    sent = 0
+    for change in changes:
+        try:
+            user = User.objects.get(pk=change['user_id'])
+        except User.DoesNotExist:
+            continue
+
+        if change['moved_up']:
+            message = f"📈 You moved up to rank #{change['new_rank']} (was #{change['old_rank']})"
+        else:
+            message = f"📉 You dropped to rank #{change['new_rank']} (was #{change['old_rank']})"
+
+        Notification.objects.create(
+            user=user,
+            type='rank_change',
+            message=message,
+            meta={'match_id': match_id, 'old_rank': change['old_rank'], 'new_rank': change['new_rank']},
+        )
+        for sub in PushSubscription.objects.filter(user=user):
+            if send_push_notification(
+                sub, title='CricFun', body=message,
+                url='/standings', tag=f'my-rank-{match_id}',
+            ):
+                sent += 1
+
+    logger.info(
+        'notify_personal_rank_changes: %d users notified, %d push sent for match %s',
+        len(changes), sent, match_id,
+    )
+
+
+@shared_task
+def notify_tournament_over(match_id, top3_text):
+    """
+    Notify all active approved users that the tournament is over with top-3 results.
+    Fired once after the Final match snapshot is taken.
+    """
+    from django.contrib.auth.models import User
+    from apps.notifications.models import Notification, PushSubscription
+    from apps.notifications.utils import send_push_notification
+
+    users = list(User.objects.filter(is_active=True, userprofile__approved=True))
+    Notification.objects.bulk_create([
+        Notification(
+            user=u, type='rank_change', message=top3_text,
+            meta={'match_id': match_id, 'tournament_over': True},
+        )
+        for u in users
+    ])
+
+    subs = (PushSubscription.objects
+            .filter(user__is_active=True, user__userprofile__approved=True)
+            .select_related('user'))
+    sent = 0
+    for sub in subs:
+        if send_push_notification(
+            sub, title='🏆 Tournament Over', body=top3_text,
+            url='/standings', tag='tournament-over',
+        ):
+            sent += 1
+
+    logger.info(
+        'notify_tournament_over: %d in-app + %d push sent for match %s',
+        len(users), sent, match_id,
+    )

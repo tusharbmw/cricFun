@@ -289,6 +289,38 @@ def take_snapshot(match_id):
             prev_leader, new_leader,
         )
 
+    # Personal rank-change notifications for every user whose rank moved.
+    rank_changes = [
+        {
+            'user_id':  e['user_id'],
+            'old_rank': e['prev_rank'],
+            'new_rank': e['rank'],
+            'moved_up': e['rank'] < e['prev_rank'],
+        }
+        for e in ranked
+        if e.get('rank_change') in ('up', 'down') and e.get('prev_rank') is not None
+    ]
+    if rank_changes:
+        from apps.notifications.tasks import notify_personal_rank_changes
+        notify_personal_rank_changes.delay(rank_changes, match_id)
+
+    # Tournament-over notification after the Final match.
+    if match.description == 'Final':
+        medals = {1: '🥇', 2: '🥈', 3: '🥉'}
+        by_rank = {}
+        for e in ranked:
+            if e['rank'] <= 3:
+                by_rank.setdefault(e['rank'], []).append(e.get('display_name') or e['username'])
+        parts = []
+        for rank in sorted(by_rank):
+            names = by_rank[rank]
+            name_str = ' & '.join(names) + (' (tied)' if len(names) > 1 else '')
+            parts.append(f"{medals[rank]} {name_str}")
+        top3_text = '🏆 Tournament over! Thanks for playing. ' + '  '.join(parts)
+        from apps.notifications.tasks import notify_tournament_over
+        notify_tournament_over.delay(match_id, top3_text)
+        logger.info('take_snapshot: tournament-over notification queued for match %s', match_id)
+
 
 def compute_streaks():
     """
@@ -368,6 +400,7 @@ def _attach_rank_changes(ranked):
 
     for entry in ranked:
         prev_rank = prev_ranks.get(entry['username'])
+        entry['prev_rank'] = prev_rank
         if prev_rank is None:
             entry['rank_change'] = 'new'
         elif entry['rank'] < prev_rank:
