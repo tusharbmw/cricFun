@@ -283,7 +283,7 @@ def take_snapshot(match_id):
     new_leader = ranked[0]['username'] if ranked else None
     if new_leader and new_leader != prev_leader:
         from apps.notifications.tasks import notify_rank_change
-        notify_rank_change.delay(new_leader, match_id, prev_leader)
+        notify_rank_change.apply_async(args=[new_leader, match_id, prev_leader], countdown=10)
         logger.info(
             'take_snapshot: rank-1 changed %s → %s, notifications queued',
             prev_leader, new_leader,
@@ -302,7 +302,7 @@ def take_snapshot(match_id):
     ]
     if rank_changes:
         from apps.notifications.tasks import notify_personal_rank_changes
-        notify_personal_rank_changes.delay(rank_changes, match_id)
+        notify_personal_rank_changes.apply_async(args=[rank_changes, match_id], countdown=5)
 
     # Tournament-over notification after the Final match.
     if match.description == 'Final':
@@ -318,7 +318,7 @@ def take_snapshot(match_id):
             parts.append(f"{medals[rank]} {name_str}")
         top3_text = '🏆 Tournament over! Thanks for playing. ' + '  '.join(parts)
         from apps.notifications.tasks import notify_tournament_over
-        notify_tournament_over.delay(match_id, top3_text)
+        notify_tournament_over.apply_async(args=[match_id, top3_text], countdown=30)
         logger.info('take_snapshot: tournament-over notification queued for match %s', match_id)
 
 
