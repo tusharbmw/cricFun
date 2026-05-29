@@ -200,14 +200,33 @@ class MatchViewSet(viewsets.ModelViewSet):
                 elif s.no_negative:
                     powerups[s.user.username] = 'no_negative'
 
+        # For completed playoff matches, compute non-pickers and assign them to
+        # the losing side — mirroring the scoring logic in calculate_scores().
+        team1_auto = []
+        team2_auto = []
+        if match.playoff and match.result in ('team1', 'team2'):
+            from django.contrib.auth.models import User as _User
+            all_usernames = set(
+                _User.objects.filter(is_active=True, userprofile__approved=True)
+                .values_list('username', flat=True)
+            )
+            picked_usernames = set(sel1_users) | set(sel2_users)
+            non_pickers = sorted(all_usernames - picked_usernames)
+            if match.result == 'team1':
+                team2_auto = non_pickers   # team1 won → losers are team2 side
+            else:
+                team1_auto = non_pickers   # team2 won → losers are team1 side
+
         return Response({
             'match_id': match.id,
             'team1': match.team1.name if match.team1 else None,
             'team2': match.team2.name if match.team2 else None,
             'team1_selections': sel1_users,
-            'team1_count': len(sel1_users),
+            'team1_count': len(sel1_users) + len(team1_auto),
             'team2_selections': sel2_users,
-            'team2_count': len(sel2_users),
+            'team2_count': len(sel2_users) + len(team2_auto),
+            'team1_auto': team1_auto,
+            'team2_auto': team2_auto,
             'hidden_count': hidden_count,
             'powerups': powerups,
         })

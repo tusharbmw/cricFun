@@ -136,38 +136,34 @@ export default function MatchDetail() {
           <div className="p-4">
             <h2 className="font-semibold text-gray-600 mb-3">Who picked who</h2>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm font-medium text-gray-800 mb-2">
-                  {sel.team1} <span className="text-gray-400 text-xs">({sel.team1_selections?.length})</span>
+              {[
+                { teamName: sel.team1, picks: sel.team1_selections ?? [], auto: sel.team1_auto ?? [] },
+                { teamName: sel.team2, picks: sel.team2_selections ?? [], auto: sel.team2_auto ?? [] },
+              ].map(({ teamName, picks, auto }) => (
+                <div key={teamName}>
+                  <div className="text-sm font-medium text-gray-800 mb-2">
+                    {teamName} <span className="text-gray-400 text-xs">({picks.length + auto.length})</span>
+                  </div>
+                  {picks.length === 0 && auto.length === 0
+                    ? <p className="text-xs text-gray-300">No picks yet</p>
+                    : <>
+                        {picks.map(u => {
+                          const pp = sel.powerups?.[u]
+                          return (
+                            <div key={u} className="text-sm text-gray-600 py-0.5">
+                              {u}{pp && <span title={POWERUP_META[pp].label}> {POWERUP_META[pp].emoji}</span>}
+                            </div>
+                          )
+                        })}
+                        {auto.map(u => (
+                          <div key={u} className="text-sm text-gray-400 py-0.5" title="Auto-assigned — did not pick">
+                            💀 {u}
+                          </div>
+                        ))}
+                      </>
+                  }
                 </div>
-                {sel.team1_selections?.length === 0
-                  ? <p className="text-xs text-gray-300">No picks yet</p>
-                  : sel.team1_selections?.map(u => {
-                      const pp = sel.powerups?.[u]
-                      return (
-                        <div key={u} className="text-sm text-gray-600 py-0.5">
-                          {u}{pp && <span title={POWERUP_META[pp].label}> {POWERUP_META[pp].emoji}</span>}
-                        </div>
-                      )
-                    })
-                }
-              </div>
-              <div>
-                <div className="text-sm font-medium text-gray-800 mb-2">
-                  {sel.team2} <span className="text-gray-400 text-xs">({sel.team2_selections?.length})</span>
-                </div>
-                {sel.team2_selections?.length === 0
-                  ? <p className="text-xs text-gray-300">No picks yet</p>
-                  : sel.team2_selections?.map(u => {
-                      const pp = sel.powerups?.[u]
-                      return (
-                        <div key={u} className="text-sm text-gray-600 py-0.5">
-                          {u}{pp && <span title={POWERUP_META[pp].label}> {POWERUP_META[pp].emoji}</span>}
-                        </div>
-                      )
-                    })
-                }
-              </div>
+              ))}
             </div>
             {Object.keys(sel.powerups ?? {}).length > 0 && (
               <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-1">

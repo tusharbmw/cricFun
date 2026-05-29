@@ -26,9 +26,10 @@ function TeamLogo({ team, bgColor }) {
   )
 }
 
-function ResultStateBadge({ result, myPick, won }) {
+function ResultStateBadge({ result, myPick, won, playoffAutoLoss }) {
   if (result === 'CANC') return <span className="text-xs font-medium px-2.5 py-1 rounded-xl bg-gray-100 text-gray-500">CANCELLED</span>
   if (result === 'NR') return <span className="text-xs font-medium px-2.5 py-1 rounded-xl bg-gray-100 text-gray-500">NO RESULT</span>
+  if (playoffAutoLoss) return <span className="text-xs font-bold px-2.5 py-1 rounded-xl" style={{ background: '#FCEBEB', color: '#791F1F' }}>💀 AUTO-LOST</span>
   if (!myPick) return <span className="text-xs font-medium px-2.5 py-1 rounded-xl bg-gray-100 text-gray-500">SKIPPED</span>
   if (won) return <span className="text-xs font-bold px-2.5 py-1 rounded-xl" style={{ background: '#EAF3DE', color: '#27500A' }}>✓ WON</span>
   return <span className="text-xs font-bold px-2.5 py-1 rounded-xl" style={{ background: '#FCEBEB', color: '#791F1F' }}>✗ LOST</span>
@@ -99,9 +100,13 @@ function ResultCard({ match, myPick, highlighted }) {
   })
 
   const isSkipped = !myPick && match.result !== 'CANC'
+  const isPlayoffAutoLoss = isSkipped && match.playoff && !!winner && !!sel
 
   let pointsDisplay = null
-  if (isSkipped) {
+  if (isPlayoffAutoLoss) {
+    const winnerCount = t1Won ? sel.team1_count : sel.team2_count
+    pointsDisplay = { text: `-${winnerCount * match.match_points} pts`, positive: false, count: winnerCount, autoLoss: true }
+  } else if (isSkipped) {
     pointsDisplay = { text: '0 pts', skipped: true }
   } else if (myPick && winner && sel) {
     if (won) {
@@ -123,7 +128,7 @@ function ResultCard({ match, myPick, highlighted }) {
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <ResultStateBadge result={match.result} myPick={myPick} won={won} />
+            <ResultStateBadge result={match.result} myPick={myPick} won={won} playoffAutoLoss={isPlayoffAutoLoss} />
             <span className="text-xs text-gray-400">{match.description}</span>
           </div>
           <div className="flex flex-col items-end shrink-0 gap-0.5">
@@ -219,19 +224,19 @@ function ResultCard({ match, myPick, highlighted }) {
         )}
 
         {/* Who picked what */}
-        {sel && (sel.team1_selections?.length > 0 || sel.team2_selections?.length > 0) && (
+        {sel && (sel.team1_selections?.length > 0 || sel.team2_selections?.length > 0 || sel.team1_auto?.length > 0 || sel.team2_auto?.length > 0) && (
           <div className="mt-3 grid grid-cols-2 gap-2">
             {[
-              { teamName: sel.team1, picks: sel.team1_selections ?? [], won: t1Won },
-              { teamName: sel.team2, picks: sel.team2_selections ?? [], won: t2Won },
-            ].map(({ teamName, picks, won }) => (
+              { teamName: sel.team1, picks: sel.team1_selections ?? [], auto: sel.team1_auto ?? [], won: t1Won },
+              { teamName: sel.team2, picks: sel.team2_selections ?? [], auto: sel.team2_auto ?? [], won: t2Won },
+            ].map(({ teamName, picks, auto, won }) => (
               <div key={teamName} className="rounded-lg p-2.5"
                 style={{ background: won ? '#EAF3DE' : '#f9fafb' }}>
                 <p className="text-xs font-semibold mb-1.5 truncate"
                   style={{ color: won ? '#27500A' : '#6b7280' }}>
                   {teamName} {won ? '★' : ''}
                 </p>
-                {picks.length === 0
+                {picks.length === 0 && auto.length === 0
                   ? <p className="text-xs text-gray-400 italic">No picks</p>
                   : <div className="flex flex-wrap gap-1">
                     {picks.map(username => {
@@ -248,6 +253,17 @@ function ResultCard({ match, myPick, highlighted }) {
                         </span>
                       )
                     })}
+                    {auto.map(username => (
+                      <span key={username}
+                        className="text-xs px-1.5 py-0.5 rounded-md font-medium"
+                        style={username === user?.username
+                          ? { background: '#fef2f2', color: '#991b1b', fontWeight: 700 }
+                          : { background: '#f3f4f6', color: '#9ca3af' }
+                        }
+                        title="Auto-assigned — did not pick">
+                        💀 {username === user?.username ? `${username} (you)` : username}
+                      </span>
+                    ))}
                   </div>
                 }
               </div>
@@ -256,18 +272,20 @@ function ResultCard({ match, myPick, highlighted }) {
         )}
 
         {/* Points explanation */}
-        {isSkipped && (
+        {isSkipped && !isPlayoffAutoLoss && (
           <p className="text-xs mt-2 font-medium text-gray-400">
             You skipped this match — 0 points
           </p>
         )}
-        {!isSkipped && pointsDisplay && sel && (
-          <p className="text-xs mt-2 font-medium" style={pointsDisplay.positive ? { color: '#085041' } : { color: '#791F1F' }}>
-            {pointsDisplay.wall
+        {(isPlayoffAutoLoss || (!isSkipped && pointsDisplay && sel)) && (
+          <p className="text-xs mt-2 font-medium" style={pointsDisplay?.positive ? { color: '#085041' } : { color: '#791F1F' }}>
+            {pointsDisplay?.wall
               ? `🛡️ The Wall blocked your loss — 0 pts`
-              : pointsDisplay.positive
-                ? `You earned ${pointsDisplay.text} (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the loser)`
-                : `You lost ${pointsDisplay.count * match.match_points} pts (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the winner)`
+              : pointsDisplay?.autoLoss
+                ? `💀 Playoff penalty — you didn't pick and were assigned to the losing side (${match.match_points} pt × ${pointsDisplay.count} winners)`
+                : pointsDisplay?.positive
+                  ? `You earned ${pointsDisplay?.text} (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the loser)`
+                  : `You lost ${pointsDisplay?.count * match.match_points} pts (${match.match_points} pt × ${pointsDisplay?.count} opponents who picked the winner)`
             }
           </p>
         )}
