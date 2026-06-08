@@ -324,10 +324,10 @@ function ResultCard({ match, myPick, highlighted }) {
             {pointsDisplay?.wall
               ? `🛡️ The Wall blocked your loss — 0 pts`
               : pointsDisplay?.autoLoss
-                ? `💀 Playoff penalty — you didn't pick and were assigned to the losing side (${match.match_points} pt × ${pointsDisplay.count} winners)`
+                ? `💀 Playoff penalty — you didn't pick and were assigned to the losing side (${pointsDisplay.bp} pt × ${pointsDisplay.count} winners)`
                 : pointsDisplay?.positive
-                  ? `You earned ${pointsDisplay?.text} (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the loser)`
-                  : `You lost ${pointsDisplay?.count * match.match_points} pts (${match.match_points} pt × ${pointsDisplay?.count} opponents who picked the winner)`
+                  ? `You earned ${pointsDisplay?.text} (${pointsDisplay.bp} pt × ${pointsDisplay.count} opponents who picked the loser)`
+                  : `You lost ${pointsDisplay?.count * pointsDisplay?.bp} pts (${pointsDisplay?.bp} pt × ${pointsDisplay?.count} opponents who picked the winner)`
             }
           </p>
         )}
