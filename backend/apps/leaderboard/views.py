@@ -410,7 +410,7 @@ def compute_streaks():
                 if pick is None:
                     streak.append('S')
                 elif winner == 'draw' and pick[1]:
-                    streak.append('D')
+                    streak.append('W')
                 elif winner != 'draw' and pick[0] == winner:
                     streak.append('W')
                 else:
