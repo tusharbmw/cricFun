@@ -7,6 +7,7 @@ import { picksAPI } from '@/api/picks'
 import Spinner from '@/components/ui/Spinner'
 import PickDistribution from '@/components/home/PickDistribution'
 import { useCountdown } from '@/hooks/useCountdown'
+import useTournamentStore from '@/store/tournamentStore'
 
 const POWERUP_META = {
   hidden:      { emoji: '🕵️', label: 'Hidden',   key: 'hidden_count',      suffix: 'from others' },
@@ -303,6 +304,8 @@ function MatchPickRow({ match, existingPick, stats }) {
 
 export default function Schedule() {
   const sentinelRef = useRef(null)
+  const { currentTournament } = useTournamentStore()
+  const tid = currentTournament?.id
 
   const {
     data,
@@ -311,12 +314,13 @@ export default function Schedule() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['matches', 'upcoming'],
+    queryKey: ['matches', 'upcoming', tid],
     queryFn: ({ pageParam = 0 }) =>
-      matchesAPI.upcoming({ offset: pageParam, limit: 10 }).then(r => r.data),
+      matchesAPI.upcoming({ offset: pageParam, limit: 10, tournament: tid }).then(r => r.data),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.has_more ? allPages.length * 10 : undefined,
+    enabled: !!tid,
   })
 
   const upcoming = data?.pages.flatMap(p => p.results) ?? []

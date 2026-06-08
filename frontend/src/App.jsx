@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import posthog from '@/lib/posthog'
 import useAuthStore from '@/store/authStore'
+import useTournamentStore from '@/store/tournamentStore'
 import Layout from '@/components/layout/Layout'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import Login from '@/pages/Login'
@@ -15,6 +16,7 @@ import Profile from '@/pages/Profile'
 import Rules from '@/pages/Rules'
 import Portfolio from '@/pages/Portfolio'
 import SocialCallback from '@/pages/SocialCallback'
+import TournamentChooser from '@/pages/TournamentChooser'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,11 +36,15 @@ function PageViewTracker() {
 }
 
 function AppRoutes() {
-  const init = useAuthStore(s => s.init)
+  const { init: authInit, isAuthenticated } = useAuthStore(s => ({ init: s.init, isAuthenticated: s.isAuthenticated }))
+  const tournamentInit = useTournamentStore(s => s.init)
 
+  useEffect(() => { authInit() }, [authInit])
+
+  // Fetch tournaments once the user is confirmed authenticated
   useEffect(() => {
-    init()
-  }, [init])
+    if (isAuthenticated) tournamentInit()
+  }, [isAuthenticated, tournamentInit])
 
   return (
     <Routes>
@@ -47,6 +53,14 @@ function AppRoutes() {
       <Route path="/auth/callback/" element={<SocialCallback />} />
       <Route path="/tushar" element={<Portfolio />} />
       <Route path="/rules" element={<Rules />} />
+      <Route
+        path="/choose"
+        element={
+          <ProtectedRoute>
+            <TournamentChooser />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/"
         element={

@@ -7,6 +7,7 @@ import { picksAPI } from '@/api/picks'
 import useAuthStore from '@/store/authStore'
 import Spinner from '@/components/ui/Spinner'
 import PickDistribution from '@/components/home/PickDistribution'
+import useTournamentStore from '@/store/tournamentStore'
 
 const POWERUP_META = {
   hidden:      { emoji: '🕵️', label: 'Hidden',   suffix: 'from others' },
@@ -38,10 +39,13 @@ function ResultStateBadge({ result, myPick, won, playoffAutoLoss }) {
 export default function Results() {
   const [searchParams] = useSearchParams()
   const scrollToMatchId = searchParams.get('match')
+  const { currentTournament } = useTournamentStore()
+  const tid = currentTournament?.id
 
   const { data: completed, isLoading } = useQuery({
-    queryKey: ['matches', 'completed'],
-    queryFn: () => matchesAPI.completed().then(r => r.data),
+    queryKey: ['matches', 'completed', tid],
+    queryFn: () => matchesAPI.completed({ tournament: tid }).then(r => r.data),
+    enabled: !!tid,
   })
 
   const { data: historyData } = useQuery({

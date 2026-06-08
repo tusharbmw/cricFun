@@ -8,6 +8,7 @@ import HomeMatchCard from '@/components/home/HomeMatchCard'
 import AlertBanner from '@/components/home/AlertBanner'
 import Sidebar from '@/components/layout/Sidebar'
 import Spinner from '@/components/ui/Spinner'
+import useTournamentStore from '@/store/tournamentStore'
 
 function liveRefetchInterval(query, upcomingRef) {
   const liveData = query.state.data
@@ -27,24 +28,29 @@ export default function Dashboard() {
   const [dragTargetId, setDragTargetId] = useState(null)
   const [selectedBooster, setSelectedBooster] = useState(null)
   const [applyingBoosterId, setApplyingBoosterId] = useState(null)
+  const { currentTournament } = useTournamentStore()
+  const tid = currentTournament?.id
 
   const { data: upcoming } = useQuery({
-    queryKey: ['matches', 'upcoming', 'dashboard'],
-    queryFn: () => matchesAPI.upcoming({ limit: 5 }).then(r => r.data.results),
+    queryKey: ['matches', 'upcoming', 'dashboard', tid],
+    queryFn: () => matchesAPI.upcoming({ limit: 5, tournament: tid }).then(r => r.data.results),
+    enabled: !!tid,
   })
   useEffect(() => {
     if (upcoming) upcomingRef.current = upcoming
   }, [upcoming])
 
   const { data: live } = useQuery({
-    queryKey: ['matches', 'live'],
-    queryFn: () => matchesAPI.live().then(r => r.data),
+    queryKey: ['matches', 'live', tid],
+    queryFn: () => matchesAPI.live({ tournament: tid }).then(r => r.data),
     refetchInterval: query => liveRefetchInterval(query, upcomingRef),
+    enabled: !!tid,
   })
 
   const { data: completed, isLoading: completedLoading } = useQuery({
-    queryKey: ['matches', 'completed'],
-    queryFn: () => matchesAPI.completed().then(r => r.data),
+    queryKey: ['matches', 'completed', tid],
+    queryFn: () => matchesAPI.completed({ tournament: tid }).then(r => r.data),
+    enabled: !!tid,
   })
 
   const { data: stats } = useQuery({

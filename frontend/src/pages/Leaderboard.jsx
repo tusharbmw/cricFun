@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown, MoveHorizontal } from 'lucide-react'
 import { leaderboardAPI } from '@/api/leaderboard'
 import useAuthStore from '@/store/authStore'
 import Spinner from '@/components/ui/Spinner'
+import useTournamentStore from '@/store/tournamentStore'
 
 // ---------------------------------------------------------------------------
 // Shared empty state
@@ -236,17 +237,21 @@ function PointsProgressionChart({ history, currentUsername, displayNames }) {
 
 export default function Leaderboard() {
   const { user } = useAuthStore()
+  const { currentTournament } = useTournamentStore()
+  const tid = currentTournament?.id
 
   const { data: board, isLoading } = useQuery({
-    queryKey: ['leaderboard'],
+    queryKey: ['leaderboard', tid],
     queryFn: () => leaderboardAPI.global().then(r => r.data),
     staleTime: 60000,
+    enabled: !!tid,
   })
 
   const { data: history, isLoading: historyLoading } = useQuery({
-    queryKey: ['leaderboard', 'history'],
+    queryKey: ['leaderboard', 'history', tid],
     queryFn: () => leaderboardAPI.history().then(r => r.data),
     staleTime: 5 * 60 * 1000,
+    enabled: !!tid,
   })
 
   if (isLoading) return <Spinner />
