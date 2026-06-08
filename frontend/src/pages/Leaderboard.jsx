@@ -320,11 +320,13 @@ export default function Leaderboard() {
                             <span key={idx} className={`text-[9px] font-bold px-1 py-px rounded ${
                               s === 'W' ? 'bg-green-100 text-green-700' :
                               s === 'L' ? 'bg-red-100 text-red-700' :
+                              s === 'D' ? 'bg-blue-100 text-blue-600' :
                               s === 'N' ? 'bg-yellow-100 text-yellow-700' :
                               'bg-gray-100 text-gray-400'
                             } ${idx === 0 ? (
                               s === 'W' ? 'ring-1 ring-green-400' :
                               s === 'L' ? 'ring-1 ring-red-400' :
+                              s === 'D' ? 'ring-1 ring-blue-400' :
                               s === 'N' ? 'ring-1 ring-yellow-400' :
                               'ring-1 ring-gray-400'
                             ) : ''}`}>{s}</span>
