@@ -36,8 +36,9 @@ function PageViewTracker() {
 }
 
 function AppRoutes() {
-  const { init: authInit, isAuthenticated } = useAuthStore(s => ({ init: s.init, isAuthenticated: s.isAuthenticated }))
-  const tournamentInit = useTournamentStore(s => s.init)
+  const authInit       = useAuthStore(s => s.init)
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated)
+  const tournamentInit  = useTournamentStore(s => s.init)
 
   useEffect(() => { authInit() }, [authInit])
 
@@ -52,7 +53,6 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/auth/callback/" element={<SocialCallback />} />
       <Route path="/tushar" element={<Portfolio />} />
-      <Route path="/rules" element={<Rules />} />
       <Route
         path="/choose"
         element={

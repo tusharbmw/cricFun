@@ -34,7 +34,8 @@ function TeamLogo({ team, bgColor }) {
   )
 }
 
-function StateBadge({ isLive, isUrgent, hasPick, isBeyondWindow }) {
+function StateBadge({ isLive, isUrgent, hasPick, isBeyondWindow, teamsNotConfirmed }) {
+  if (teamsNotConfirmed) return <span className="text-xs font-medium px-2.5 py-1 rounded-xl bg-amber-50 text-amber-600 border border-amber-200">Teams TBD</span>
   if (isLive) return <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-red-100 text-red-700 animate-pulse">🔴 LIVE</span>
   if (isBeyondWindow) return <span className="text-xs font-medium px-2.5 py-1 rounded-xl bg-gray-100 text-gray-500">UPCOMING</span>
   if (hasPick) return <span className="text-xs font-bold px-2.5 py-1 rounded-xl" style={{ background: '#E1F5EE', color: '#085041' }}>✓ PICKED</span>
@@ -61,7 +62,8 @@ function MatchPickRow({ match, existingPick, stats }) {
   const pickWindowMs = (stats?.pick_window_days ?? 5) * 24 * 60 * 60 * 1000
   const isBeyondWindow = match.result === 'TBD' && dt.getTime() - now > pickWindowMs
   const isLive = match.result === 'IP' || match.result === 'TOSS'
-  const isLocked = match.result !== 'TBD' || isBeyondWindow || isLive
+  const teamsConfirmed = !!(match.team1?.name && match.team1.name !== 'TBD' && match.team2?.name && match.team2.name !== 'TBD')
+  const isLocked = match.result !== 'TBD' || isBeyondWindow || isLive || !teamsConfirmed
   const isUrgent = !isLocked && dt.getTime() - now < 24 * 3600 * 1000
 
   const hasPick = selected !== null
@@ -166,7 +168,7 @@ function MatchPickRow({ match, existingPick, stats }) {
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <StateBadge isLive={isLive} isUrgent={isUrgent} hasPick={hasPick} isBeyondWindow={isBeyondWindow} />
+            <StateBadge isLive={isLive} isUrgent={isUrgent} hasPick={hasPick} isBeyondWindow={isBeyondWindow} teamsNotConfirmed={!teamsConfirmed} />
             <span className="text-xs text-gray-400">{match.description}</span>
             {saving && <span className="loading loading-spinner loading-xs text-primary" />}
           </div>
@@ -186,7 +188,7 @@ function MatchPickRow({ match, existingPick, stats }) {
                 <TeamLogo team={match.team1} bgColor="#E6F1FB" />
               </div>
             </div>
-            <span className="text-sm font-medium text-center leading-tight text-gray-800">{match.team1?.name}</span>
+            <span className="text-sm font-medium text-center leading-tight text-gray-800">{match.team1?.name || 'TBD'}</span>
           </div>
 
           <div className="text-gray-400 font-medium text-sm pt-3">VS</div>
@@ -200,7 +202,7 @@ function MatchPickRow({ match, existingPick, stats }) {
                 <TeamLogo team={match.team2} bgColor="#EAF3DE" />
               </div>
             </div>
-            <span className="text-sm font-medium text-center leading-tight text-gray-800">{match.team2?.name}</span>
+            <span className="text-sm font-medium text-center leading-tight text-gray-800">{match.team2?.name || 'TBD'}</span>
           </div>
         </div>
 
@@ -370,8 +372,9 @@ export default function Schedule() {
     queryFn: () => picksAPI.active().then(r => r.data),
   })
   const { data: stats } = useQuery({
-    queryKey: ['picks', 'stats'],
-    queryFn: () => picksAPI.stats().then(r => r.data),
+    queryKey: ['picks', 'stats', tid],
+    queryFn: () => picksAPI.stats({ tournament: tid }).then(r => r.data),
+    enabled: !!tid,
   })
 
   const pickMap = {}
@@ -392,14 +395,10 @@ export default function Schedule() {
 
       {stats && (
         <div className="stats stats-horizontal bg-gray-50 shadow w-full">
-          {[
-            { key: 'hidden_count',      emoji: '🕵️', label: 'Hidden' },
-            { key: 'fake_count',        emoji: '🃏',  label: 'Googly' },
-            { key: 'no_negative_count', emoji: '🛡️', label: 'The Wall' },
-          ].map(({ key, emoji, label }) => (
-            <div key={key} className="stat place-items-center py-2">
-              <div className="stat-value text-base text-secondary">{stats[key]}</div>
-              <div className="stat-desc text-xs">{emoji} {label}</div>
+          {Object.entries(POWERUP_META[currentTournament?.sport ?? 'cricket']).map(([, meta]) => (
+            <div key={meta.key} className="stat place-items-center py-2">
+              <div className="stat-value text-base text-secondary">{stats[meta.key]}</div>
+              <div className="stat-desc text-xs">{meta.emoji} {meta.label}</div>
             </div>
           ))}
         </div>

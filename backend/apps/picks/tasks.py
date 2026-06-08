@@ -39,7 +39,7 @@ def process_pick_results(match_id):
 
     # For playoff matches, also notify users who didn't pick — they were
     # auto-assigned to the losing side and lost points.
-    if match.playoff and match.result in ('team1', 'team2'):
+    if match.is_high_stakes and match.result in ('team1', 'team2'):
         from django.contrib.auth.models import User
         from apps.notifications.models import Notification, PushSubscription
         from apps.notifications.utils import send_push_notification

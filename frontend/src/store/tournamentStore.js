@@ -10,13 +10,15 @@ const useTournamentStore = create((set) => ({
   chooserOpen: false,
 
   init: async () => {
+    set({ isLoading: true })
     try {
       const { data } = await tournamentsAPI.list()
+      const list = Array.isArray(data) ? data : (data.results ?? [])
       const savedId = parseInt(localStorage.getItem(STORAGE_KEY))
-      const saved = data.find(t => t.id === savedId) ?? null
-      const current = saved ?? (data.length === 1 ? data[0] : null)
+      const saved = list.find(t => t.id === savedId) ?? null
+      const current = saved ?? (list.length === 1 ? list[0] : null)
       if (current) localStorage.setItem(STORAGE_KEY, String(current.id))
-      set({ tournaments: data, currentTournament: current, isLoading: false })
+      set({ tournaments: list, currentTournament: current, isLoading: false })
     } catch {
       set({ isLoading: false })
     }

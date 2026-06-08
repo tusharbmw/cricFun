@@ -113,13 +113,14 @@ def calculate_scores(upto_match_id=None, tournament=None):
         else:
             bp = mr.match_points
 
-        if mr.playoff:
-            # Non-pickers take the losing side penalty
+        if mr.is_high_stakes:
+            # QF+ (soccer) / all playoffs (cricket): non-pickers take the losing side penalty
             if mr.result == 'team1':
                 sel2 = sel2 + non_pickers
             elif mr.result == 'team2':
                 sel1 = sel1 + non_pickers
         else:
+            # Group stage + R32/R16 (soccer): skipping costs a skip slot
             for username in non_pickers:
                 if username in scores:
                     scores[username]['skipped'] += 1
@@ -565,11 +566,24 @@ class LeaderboardView(APIView):
 
 
 class MyRankView(APIView):
-    """GET /api/v1/leaderboard/me/  → current user's rank and stats."""
+    """GET /api/v1/leaderboard/me/?tournament=<id>  → current user's rank and stats."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        ranked = get_cached_leaderboard()
+        tournament_id = request.query_params.get('tournament')
+        tournament = None
+        if tournament_id:
+            try:
+                tournament = Tournament.objects.get(pk=tournament_id)
+            except Tournament.DoesNotExist:
+                pass
+
+        if tournament:
+            scores = calculate_scores(tournament=tournament)
+            ranked = _build_ranked_list(scores)
+        else:
+            ranked = get_cached_leaderboard()
+
         for entry in ranked:
             if entry['username'] == request.user.username:
                 return Response(entry)

@@ -281,15 +281,22 @@ def fetch_football_matches(tournament_id=None):
                 home_raw = m.get('homeTeam') or {}
                 away_raw = m.get('awayTeam') or {}
 
+                # Use 'TBD' for knockout matches where opponents aren't decided yet.
+                # The match is still created so it shows in the schedule; the team
+                # record gets updated automatically on the next sync when the API
+                # provides the real name.
+                home_name = home_raw.get('name') or 'TBD'
+                away_name = away_raw.get('name') or 'TBD'
+
                 team1, _ = Team.objects.get_or_create(
-                    name=home_raw['name'],
+                    name=home_name,
                     defaults={
                         'logo_url':    home_raw.get('crest', ''),
                         'description': home_raw.get('tla') or home_raw.get('shortName', ''),
                     },
                 )
                 team2, _ = Team.objects.get_or_create(
-                    name=away_raw['name'],
+                    name=away_name,
                     defaults={
                         'logo_url':    away_raw.get('crest', ''),
                         'description': away_raw.get('tla') or away_raw.get('shortName', ''),

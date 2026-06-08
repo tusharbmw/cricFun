@@ -54,13 +54,15 @@ export default function Dashboard() {
   })
 
   const { data: stats } = useQuery({
-    queryKey: ['picks', 'stats'],
-    queryFn: () => picksAPI.stats().then(r => r.data),
+    queryKey: ['picks', 'stats', tid],
+    queryFn: () => picksAPI.stats({ tournament: tid }).then(r => r.data),
+    enabled: !!tid,
   })
 
   const { data: myRank } = useQuery({
-    queryKey: ['leaderboard', 'me'],
-    queryFn: () => leaderboardAPI.me().then(r => r.data),
+    queryKey: ['leaderboard', 'me', tid],
+    queryFn: () => leaderboardAPI.me(tid).then(r => r.data),
+    enabled: !!tid,
   })
 
   const { data: active } = useQuery({
@@ -158,11 +160,14 @@ export default function Dashboard() {
                   {selectedBooster ? 'Tap match →' : 'PowerPlays:'}
                 </span>
                 <div className="flex gap-2 flex-1">
-                  {[
-                    { type: 'hidden',      label: 'Hidden', emoji: '🕵️', count: stats.hidden_count,      bg: '#EEEDFE', border: '#AFA9EC', nameColor: '#3C3489' },
-                    { type: 'fake',        label: 'Googly', emoji: '🎭', count: stats.fake_count,        bg: '#FBEAF0', border: '#ED93B1', nameColor: '#72243E' },
-                    { type: 'no_negative', label: 'The Wall', emoji: '🛡️', count: stats.no_negative_count, bg: '#E1F5EE', border: '#5DCAA5', nameColor: '#085041' },
-                  ].map(({ type, label, emoji, count, bg, border, nameColor }) => {
+                  {(() => {
+                    const isSoccer = currentTournament?.sport === 'soccer'
+                    return [
+                      { type: 'hidden',      label: 'Hidden',                           emoji: '🕵️', count: stats.hidden_count,      bg: '#EEEDFE', border: '#AFA9EC', nameColor: '#3C3489' },
+                      { type: 'fake',        label: isSoccer ? 'Dummy'   : 'Googly',    emoji: isSoccer ? '🪄' : '🎭', count: stats.fake_count,        bg: '#FBEAF0', border: '#ED93B1', nameColor: '#72243E' },
+                      { type: 'no_negative', label: isSoccer ? 'Clean Sheet' : 'The Wall', emoji: isSoccer ? '🧤' : '🛡️', count: stats.no_negative_count, bg: '#E1F5EE', border: '#5DCAA5', nameColor: '#085041' },
+                    ]
+                  })().map(({ type, label, emoji, count, bg, border, nameColor }) => {
                     const isSelected = selectedBooster === type
                     return (
                       <button

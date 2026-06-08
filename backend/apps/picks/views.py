@@ -13,10 +13,13 @@ from .serializers import SelectionSerializer, PowerupSerializer, PowerupStatsSer
 POWERUP_BUDGET = 5
 
 
-def get_powerup_stats(user):
-    """Return remaining powerup counts for a user."""
+def get_powerup_stats(user, tournament_id=None):
+    """Return remaining powerup counts for a user, scoped to a tournament."""
     counts = {'hidden': 0, 'fake': 0, 'no_negative': 0}
-    for s in Selection.objects.filter(user=user).select_related('match__tournament'):
+    qs = Selection.objects.filter(user=user).select_related('match__tournament')
+    if tournament_id:
+        qs = qs.filter(match__tournament_id=tournament_id)
+    for s in qs:
         if s.hidden and not s.match.is_high_stakes:
             counts['hidden'] += 1
         if s.fake:
@@ -53,9 +56,11 @@ class SelectionViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        from rest_framework.exceptions import PermissionDenied
+        from rest_framework.exceptions import PermissionDenied, ValidationError
         from apps.users.models import TournamentEnrollment
         match = serializer.validated_data['match']
+        if not match.team1 or not match.team2 or not match.team1.name or not match.team2.name or match.team1.name == 'TBD' or match.team2.name == 'TBD':
+            raise ValidationError({'match': 'Teams for this match are not yet confirmed.'})
         if not TournamentEnrollment.objects.filter(
             user=self.request.user, tournament=match.tournament
         ).exists():
@@ -97,8 +102,9 @@ class SelectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        """Remaining powerup counts and missing pick count."""
-        powerup_stats = get_powerup_stats(request.user)
+        """Remaining powerup counts and missing pick count, scoped to a tournament."""
+        tournament_id = request.query_params.get('tournament') or None
+        powerup_stats = get_powerup_stats(request.user, tournament_id)
 
         # Missing picks: TBD matches within the pick window without a selection
         from apps.core.models import SiteSettings
@@ -107,6 +113,8 @@ class SelectionViewSet(viewsets.ModelViewSet):
         missing_qs = Match.objects.filter(
             result='TBD', datetime__gte=now, datetime__lte=now + timedelta(days=window)
         ).exclude(selection__user=request.user)
+        if tournament_id:
+            missing_qs = missing_qs.filter(tournament_id=tournament_id)
         missing = missing_qs.count()
         urgent_missing = missing_qs.filter(datetime__lte=now + timedelta(hours=24)).count()
 

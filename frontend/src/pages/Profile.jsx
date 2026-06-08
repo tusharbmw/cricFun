@@ -4,21 +4,73 @@ import { authAPI } from '@/api/auth'
 import { picksAPI } from '@/api/picks'
 import { leaderboardAPI } from '@/api/leaderboard'
 import useAuthStore from '@/store/authStore'
-import Spinner from '@/components/ui/Spinner'
+import useTournamentStore from '@/store/tournamentStore'
 import { usePush } from '@/hooks/usePush'
+
+const POWERUP_LABELS = {
+  cricket: { hidden: '🕵️ Hidden', fake: '🃏 Googly',  no_negative: '🛡️ The Wall' },
+  soccer:  { hidden: '🕵️ Hidden', fake: '🪄 Dummy',   no_negative: '🧤 Clean Sheet' },
+}
+const SPORT_EMOJI = { cricket: '🏏', soccer: '⚽' }
+
+function TournamentStatsBlock({ tournament }) {
+  const { data: rank } = useQuery({
+    queryKey: ['leaderboard', 'me', tournament.id],
+    queryFn: () => leaderboardAPI.me(tournament.id).then(r => r.data),
+  })
+  const { data: stats } = useQuery({
+    queryKey: ['picks', 'stats', tournament.id],
+    queryFn: () => picksAPI.stats({ tournament: tournament.id }).then(r => r.data),
+  })
+  const labels = POWERUP_LABELS[tournament.sport] ?? POWERUP_LABELS.cricket
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
+      <div className="p-4">
+        <h2 className="font-semibold text-gray-700 mb-3 text-sm flex items-center gap-1.5">
+          <span>{SPORT_EMOJI[tournament.sport] ?? '🏆'}</span>
+          <span>{tournament.name}</span>
+          {tournament.season && <span className="font-normal text-gray-400">· {tournament.season}</span>}
+        </h2>
+
+        <div className="stats stats-horizontal bg-gray-50 shadow w-full flex-wrap mb-3">
+          {[
+            { label: 'Rank',    value: rank  ? `#${rank.rank}` : '–' },
+            { label: 'Points',  value: rank?.total    ?? '–' },
+            { label: 'Won',     value: rank?.won      ?? '–' },
+            { label: 'Lost',    value: rank?.lost     ?? '–' },
+            { label: 'Skipped', value: rank?.skipped  ?? '–' },
+            { label: 'Missing', value: stats?.missing_picks ?? '–' },
+          ].map(({ label, value }) => (
+            <div key={label} className="stat place-items-center py-3">
+              <div className="stat-value text-lg text-primary">{value}</div>
+              <div className="stat-desc text-xs">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {stats && (
+          <div className="stats stats-horizontal bg-gray-50 shadow w-full">
+            {[
+              { label: labels.hidden,      key: 'hidden_count' },
+              { label: labels.fake,        key: 'fake_count' },
+              { label: labels.no_negative, key: 'no_negative_count' },
+            ].map(({ label, key }) => (
+              <div key={key} className="stat place-items-center py-2">
+                <div className="stat-value text-base text-secondary">{stats[key] ?? 0}</div>
+                <div className="stat-desc text-xs">{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function Profile() {
   const { user, logout, setUser } = useAuthStore()
-
-  const { data: stats } = useQuery({
-    queryKey: ['picks', 'stats'],
-    queryFn: () => picksAPI.stats().then(r => r.data),
-  })
-
-  const { data: myRank } = useQuery({
-    queryKey: ['leaderboard', 'me'],
-    queryFn: () => leaderboardAPI.me().then(r => r.data),
-  })
+  const { tournaments } = useTournamentStore()
 
   const { supported: pushSupported, subscribed, loading: pushLoading, denied, subscribe, unsubscribe } = usePush()
 
@@ -91,48 +143,10 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
-        <div className="p-4">
-          <h2 className="font-semibold text-gray-600 mb-3 text-sm uppercase tracking-wider">Season stats</h2>
-          <div className="stats stats-horizontal bg-gray-50 shadow w-full flex-wrap">
-            {[
-              { label: 'Rank',    value: myRank ? `#${myRank.rank}` : '–' },
-              { label: 'Points',  value: myRank?.total ?? '–' },
-              { label: 'Won',     value: myRank?.won ?? '–' },
-              { label: 'Lost',    value: myRank?.lost ?? '–' },
-              { label: 'Skipped', value: myRank?.skipped ?? '–' },
-              { label: 'Missing', value: stats?.missing_picks ?? '–' },
-            ].map(({ label, value }) => (
-              <div key={label} className="stat place-items-center py-3">
-                <div className="stat-value text-lg text-primary">{value}</div>
-                <div className="stat-desc text-xs">{label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Powerups */}
-      {stats && (
-        <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
-          <div className="p-4">
-            <h2 className="font-semibold text-gray-600 mb-3 text-sm uppercase tracking-wider">PowerPlays remaining</h2>
-            <div className="stats stats-horizontal bg-gray-50 shadow w-full">
-              {[
-                { label: '🕵️ Hidden',  key: 'hidden_count' },
-                { label: '🃏 Googly',  key: 'fake_count' },
-                { label: '🛡️ The Wall', key: 'no_negative_count' },
-              ].map(({ label, key }) => (
-                <div key={key} className="stat place-items-center py-3">
-                  <div className="stat-value text-lg text-secondary">{stats[key] ?? 0}</div>
-                  <div className="stat-desc text-xs">{label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Per-tournament stats + powerplays */}
+      {tournaments.map(t => (
+        <TournamentStatsBlock key={t.id} tournament={t} />
+      ))}
 
       {/* Push notifications */}
       <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
@@ -140,7 +154,7 @@ export default function Profile() {
           <h2 className="font-semibold text-gray-600 mb-3 text-sm uppercase tracking-wider">Notifications</h2>
           {!pushSupported ? (
             <p className="text-sm text-gray-500">
-              Push notifications require CricFun to be installed as an app.
+              Push notifications require TushFun to be installed as an app.
               Tap <strong>Share → Add to Home Screen</strong> in Safari, then open from your home screen.
             </p>
           ) : denied ? (

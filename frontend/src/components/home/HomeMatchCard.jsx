@@ -75,7 +75,8 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   const isLive = ['IP', 'TOSS', 'DLD'].includes(match.result)
   const isUpcoming = match.result === 'TBD'
   const isBeyondWindow = isUpcoming && dt.getTime() - now > pickWindowMs
-  const isLocked = !isUpcoming || isBeyondWindow || isLive
+  const teamsConfirmed = !!(match.team1?.name && match.team1.name !== 'TBD' && match.team2?.name && match.team2.name !== 'TBD')
+  const isLocked = !isUpcoming || isBeyondWindow || isLive || !teamsConfirmed
   const isUrgent = isUpcoming && !isBeyondWindow && dt.getTime() - now < 24 * 3600 * 1000
 
   const hasPick = !!pick
@@ -245,7 +246,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
               </div>
             </div>
             <span className={`text-sm font-medium text-center leading-tight ${t1Won && t1Picked ? 'text-green-600' : t1WinnerNotPicked ? 'text-amber-600' : t1Lost ? 'text-red-500' : 'text-gray-800'}`}>
-              {match.team1?.name}
+              {match.team1?.name || 'TBD'}
             </span>
           </div>
 
@@ -285,7 +286,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
               </div>
             </div>
             <span className={`text-sm font-medium text-center leading-tight ${t2Won && t2Picked ? 'text-green-600' : t2WinnerNotPicked ? 'text-amber-600' : t2Lost ? 'text-red-500' : 'text-gray-800'}`}>
-              {match.team2?.name}
+              {match.team2?.name || 'TBD'}
             </span>
           </div>
         </div>

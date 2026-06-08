@@ -14,6 +14,7 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
     """Active tournaments. Frontend uses this to build the arena chooser and switcher."""
     serializer_class = TournamentSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # always a small list; plain array response
 
     def get_queryset(self):
         return Tournament.objects.filter(is_active=True)
@@ -50,6 +51,9 @@ class MatchViewSet(viewsets.ModelViewSet):
         qs = self.get_queryset().filter(
             Q(result='IP') | Q(result='TOSS') | Q(result='DLD')
         )
+        tournament_id = request.query_params.get('tournament')
+        if tournament_id:
+            qs = qs.filter(tournament_id=tournament_id)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
@@ -59,6 +63,9 @@ class MatchViewSet(viewsets.ModelViewSet):
         limit  = min(int(request.query_params.get('limit', 10)), 50)
         offset = max(int(request.query_params.get('offset', 0)), 0)
         qs     = self.get_queryset().filter(result='TBD')
+        tournament_id = request.query_params.get('tournament')
+        if tournament_id:
+            qs = qs.filter(tournament_id=tournament_id)
         total  = qs.count()
         page   = qs[offset:offset + limit]
         serializer = self.get_serializer(page, many=True)
@@ -74,6 +81,9 @@ class MatchViewSet(viewsets.ModelViewSet):
         qs = self.get_queryset().filter(
             Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR')
         ).order_by('-datetime')
+        tournament_id = request.query_params.get('tournament')
+        if tournament_id:
+            qs = qs.filter(tournament_id=tournament_id)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 

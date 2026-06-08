@@ -1,34 +1,30 @@
 import useAuthStore from '@/store/authStore'
+import useTournamentStore from '@/store/tournamentStore'
 
-const BOOSTERS = [
-  {
-    type: 'hidden',
-    emoji: '🕵️',
-    label: 'Hidden',
-    desc: 'Conceal your pick',
-    key: 'hidden_count',
-    bg: '#EEEDFE', border: '#AFA9EC', nameColor: '#3C3489', descColor: '#534AB7', countColor: '#3C3489',
-  },
-  {
-    type: 'fake',
-    emoji: '🎭',
-    label: 'Googly',
-    desc: 'Show decoy pick',
-    key: 'fake_count',
-    bg: '#FBEAF0', border: '#ED93B1', nameColor: '#72243E', descColor: '#993556', countColor: '#72243E',
-  },
-  {
-    type: 'no_negative',
-    emoji: '🛡️',
-    label: 'The Wall',
-    desc: 'No point loss',
-    key: 'no_negative_count',
-    bg: '#E1F5EE', border: '#5DCAA5', nameColor: '#085041', descColor: '#0F6E56', countColor: '#085041',
-  },
+const BOOSTER_BASE = [
+  { type: 'hidden',      key: 'hidden_count',      bg: '#EEEDFE', border: '#AFA9EC', nameColor: '#3C3489', descColor: '#534AB7', countColor: '#3C3489' },
+  { type: 'fake',        key: 'fake_count',         bg: '#FBEAF0', border: '#ED93B1', nameColor: '#72243E', descColor: '#993556', countColor: '#72243E' },
+  { type: 'no_negative', key: 'no_negative_count',  bg: '#E1F5EE', border: '#5DCAA5', nameColor: '#085041', descColor: '#0F6E56', countColor: '#085041' },
 ]
+
+const BOOSTER_META = {
+  cricket: {
+    hidden:      { emoji: '🕵️', label: 'Hidden',     desc: 'Conceal your pick' },
+    fake:        { emoji: '🎭', label: 'Googly',      desc: 'Show decoy pick' },
+    no_negative: { emoji: '🛡️', label: 'The Wall',   desc: 'No point loss' },
+  },
+  soccer: {
+    hidden:      { emoji: '🕵️', label: 'Hidden',     desc: 'Conceal your pick' },
+    fake:        { emoji: '🪄', label: 'Dummy',       desc: 'Show decoy pick' },
+    no_negative: { emoji: '🧤', label: 'Clean Sheet', desc: 'No point loss' },
+  },
+}
 
 export default function Sidebar({ myRank, stats, onDragStart, selectedBooster, onSelectBooster }) {
   const { user } = useAuthStore()
+  const { currentTournament } = useTournamentStore()
+  const sport = currentTournament?.sport ?? 'cricket'
+  const BOOSTERS = BOOSTER_BASE.map(b => ({ ...b, ...BOOSTER_META[sport][b.type] }))
   const name = user?.first_name || user?.username || ''
 
   const skipped = myRank?.skipped ?? 0

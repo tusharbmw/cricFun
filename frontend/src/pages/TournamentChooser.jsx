@@ -65,8 +65,14 @@ function TournamentCard({ tournament, onSelect }) {
  * canDismiss=true            — overlay mode triggered from the header switcher
  */
 export default function TournamentChooser({ canDismiss = false }) {
-  const { tournaments, isLoading, setTournament, closeChooser } = useTournamentStore()
+  const { tournaments, isLoading, init, setTournament, closeChooser } = useTournamentStore()
   const navigate = useNavigate()
+
+  // Ensure tournaments are loaded — handles timing edge cases where AppRoutes
+  // init hasn't fired yet, or a previous API failure left tournaments empty.
+  useEffect(() => {
+    if (tournaments.length === 0) init()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-select and bypass chooser when only one tournament is available
   useEffect(() => {
@@ -105,7 +111,25 @@ export default function TournamentChooser({ canDismiss = false }) {
         </div>
       </div>
 
+      {/* Empty state */}
+      {tournaments.length === 0 && (
+        <div className="w-full max-w-sm flex flex-col items-center gap-4 text-center">
+          <div className="text-4xl">🏟️</div>
+          <div>
+            <p className="font-semibold text-gray-700">No arenas available</p>
+            <p className="text-sm text-gray-400 mt-1">Check back soon or contact the admin.</p>
+          </div>
+          <button
+            onClick={init}
+            className="text-sm font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2 transition-colors"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
       {/* Cards */}
+      {tournaments.length > 0 && (
       <div className="w-full max-w-sm flex flex-col gap-3">
         <p className="text-xs font-medium text-gray-400 uppercase tracking-wider text-center mb-1">
           Choose your arena
@@ -114,6 +138,7 @@ export default function TournamentChooser({ canDismiss = false }) {
           <TournamentCard key={t.id} tournament={t} onSelect={handleSelect} />
         ))}
       </div>
+      )}
 
       {/* Dismiss button (overlay mode only) */}
       {canDismiss && (
