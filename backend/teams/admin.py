@@ -26,12 +26,12 @@ class TournamentAdmin(admin.ModelAdmin):
     list_filter     = ['sport', 'is_active']
     list_editable   = ['is_active']
     search_fields   = ['name', 'external_id']
-    readonly_fields = ['state', 'created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at']
     inlines         = [TournamentEnrollmentInline]
     fieldsets = (
-        (None, {'fields': ('name', 'sport', 'season', 'external_id', 'is_active')}),
-        ('Auto-managed', {
-            'fields': ('state', 'created_at', 'updated_at'),
+        (None, {'fields': ('name', 'sport', 'season', 'external_id', 'is_active', 'state')}),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',),
         }),
     )

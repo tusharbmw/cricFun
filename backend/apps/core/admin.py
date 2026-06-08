@@ -15,8 +15,10 @@ def _get_panel_context():
     from apps.core.cricapi import get_hits_status
     from apps.matches.tasks import CACHE_KEY_NEXT_CHECK
 
-    api_hits   = get_hits_status()
-    api_paused = SiteSettings.get().api_paused
+    api_hits            = get_hits_status()
+    settings            = SiteSettings.get()
+    cricket_api_paused  = settings.cricket_api_paused
+    football_api_paused = settings.football_api_paused
 
     now = datetime.now(timezone.utc)
 
@@ -35,20 +37,27 @@ def _get_panel_context():
         next_fetch += timedelta(days=1)
     next_fetch_in = int((next_fetch - now).total_seconds())
 
+    from django.core.cache import cache as _cache
+    football_calls_today = _cache.get('football_api_calls_today', 0)
+    notifications_paused = settings.notifications_paused
+
     return {
-        'api_hits': api_hits,
-        'api_paused': api_paused,
-        'next_live_check': next_live_check,
-        'next_live_check_in': next_live_check_in,
-        'next_fetch': next_fetch,
-        'next_fetch_in_h': next_fetch_in // 3600,
-        'next_fetch_in_m': (next_fetch_in % 3600) // 60,
+        'api_hits':             api_hits,
+        'cricket_api_paused':   cricket_api_paused,
+        'football_api_paused':  football_api_paused,
+        'football_calls_today': football_calls_today,
+        'notifications_paused': notifications_paused,
+        'next_live_check':      next_live_check,
+        'next_live_check_in':   next_live_check_in,
+        'next_fetch':           next_fetch,
+        'next_fetch_in_h':      next_fetch_in // 3600,
+        'next_fetch_in_m':      (next_fetch_in % 3600) // 60,
     }
 
 
 @admin.register(SiteSettings)
 class SiteSettingsAdmin(admin.ModelAdmin):
-    fields = ['tournament_id', 'pick_window_days', 'api_paused', 'notifications_paused']
+    fields = ['tournament_id', 'pick_window_days', 'cricket_api_paused', 'football_api_paused', 'notifications_paused']
     change_form_template = 'admin/core/sitesettings/change_form.html'
 
     def has_add_permission(self, request):
@@ -108,6 +117,11 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 'toggle-notifications-pause/',
                 self.admin_site.admin_view(self.toggle_notifications_pause_view),
                 name='sitesettings_toggle_notifications_pause',
+            ),
+            path(
+                'toggle-football-api-pause/',
+                self.admin_site.admin_view(self.toggle_football_api_pause_view),
+                name='sitesettings_toggle_football_api_pause',
             ),
         ]
         return custom + urls
@@ -251,10 +265,20 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         if request.method != 'POST':
             return redirect(self._settings_change_url(request))
         settings = SiteSettings.get()
-        settings.api_paused = not settings.api_paused
+        settings.cricket_api_paused = not settings.cricket_api_paused
         settings.save()
-        state = 'PAUSED' if settings.api_paused else 'RESUMED'
-        messages.success(request, f'CricAPI calls {state}.')
+        state = 'PAUSED' if settings.cricket_api_paused else 'RESUMED'
+        messages.success(request, f'Cricket API calls {state}.')
+        return redirect(self._settings_change_url(request))
+
+    def toggle_football_api_pause_view(self, request):
+        if request.method != 'POST':
+            return redirect(self._settings_change_url(request))
+        settings = SiteSettings.get()
+        settings.football_api_paused = not settings.football_api_paused
+        settings.save()
+        state = 'PAUSED' if settings.football_api_paused else 'RESUMED'
+        messages.success(request, f'Football API calls {state}.')
         return redirect(self._settings_change_url(request))
 
     def toggle_notifications_pause_view(self, request):

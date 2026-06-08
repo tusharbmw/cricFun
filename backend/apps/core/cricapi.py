@@ -60,7 +60,7 @@ def _api_key():
 def _is_paused() -> bool:
     """Return True if admin has paused all CricAPI calls."""
     from apps.core.models import SiteSettings
-    return SiteSettings.get().api_paused
+    return SiteSettings.get().cricket_api_paused
 
 
 # ── Hits tracking (server-authoritative) ──────────────────────────────────────

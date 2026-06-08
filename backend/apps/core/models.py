@@ -16,9 +16,13 @@ class SiteSettings(models.Model):
         default='',
         help_text='CricAPI tournament/series ID (replaces CRIC_TOURNAMENT_ID env var).',
     )
-    api_paused = models.BooleanField(
+    cricket_api_paused = models.BooleanField(
         default=False,
-        help_text='Pause all CricAPI calls (live score polling + schedule fetch). Use when API has issues.',
+        help_text='Pause all CricAPI calls (live score polling + schedule fetch).',
+    )
+    football_api_paused = models.BooleanField(
+        default=False,
+        help_text='Pause all football-data.org calls (score sync + schedule fetch).',
     )
     notifications_paused = models.BooleanField(
         default=False,

@@ -10,7 +10,7 @@ class Tournament(models.Model):
     name = models.CharField(max_length=100)
     sport = models.CharField(max_length=20, choices=Sport.choices, default=Sport.CRICKET)
     season = models.CharField(max_length=50, blank=True, default='')
-    external_id = models.CharField(max_length=20, blank=True, null=True)
+    external_id = models.CharField(max_length=100, blank=True, null=True)
     is_active = models.BooleanField(default=False)
     state = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
