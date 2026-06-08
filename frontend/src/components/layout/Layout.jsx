@@ -3,9 +3,10 @@ import Header from './Header'
 import BottomNav from './BottomNav'
 import useTournamentStore from '@/store/tournamentStore'
 import Spinner from '@/components/ui/Spinner'
+import TournamentChooser from '@/pages/TournamentChooser'
 
 export default function Layout() {
-  const { currentTournament, isLoading } = useTournamentStore()
+  const { currentTournament, isLoading, chooserOpen } = useTournamentStore()
 
   if (isLoading) {
     return (
@@ -29,6 +30,7 @@ export default function Layout() {
         TM, all rights reserved. By using this app you agree that Tushar is the Best!
       </footer>
       <BottomNav />
+      {chooserOpen && <TournamentChooser canDismiss />}
     </div>
   )
 }
