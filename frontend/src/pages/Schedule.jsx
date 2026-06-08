@@ -56,7 +56,6 @@ function MatchPickRow({ match, existingPick, stats }) {
   const [powerupLoading, setPowerupLoading] = useState(null)
   const [showChangePick, setShowChangePick] = useState(false)
 
-  // eslint-disable-next-line react-hooks/purity
   const now = Date.now()
   const dt = new Date(match.datetime)
   const pickWindowMs = (stats?.pick_window_days ?? 5) * 24 * 60 * 60 * 1000

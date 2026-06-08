@@ -114,7 +114,6 @@ export default function MatchDetail() {
 
   const dt = new Date(match.datetime)
   const hasScore = match.home_score != null && match.away_score != null
-  const isCompleted = ['team1', 'team2', 'draw', 'NR'].includes(match.result)
   const drawPicks = sel?.draw_selections ?? []
   const showDrawColumn = isSoccer && (match.allows_draw || drawPicks.length > 0)
 
