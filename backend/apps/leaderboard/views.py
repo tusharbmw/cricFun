@@ -367,31 +367,33 @@ def compute_streaks():
     """
     recent_matches = list(
         Match.objects.filter(
-            Q(result='team1') | Q(result='team2') | Q(result='NR')
+            Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR')
         ).order_by('-datetime')[:5]
     )
     if not recent_matches:
         return {}
 
-    # winner team pk per match (None = NR)
+    # winner team pk per match (None = NR, 'draw' = draw result)
     winner_map = {}
     for m in recent_matches:
         if m.result == 'team1':
             winner_map[m.id] = m.team1_id
         elif m.result == 'team2':
             winner_map[m.id] = m.team2_id
+        elif m.result == 'draw':
+            winner_map[m.id] = 'draw'
         else:
             winner_map[m.id] = None
 
-    # picks indexed by (match_id, username) → selected team pk
+    # picks indexed by (match_id, username) → (selection_id, drew)
     picks = {}
     for s in (
         Selection.objects
         .filter(match__in=recent_matches)
         .select_related('user')
-        .values('match_id', 'user__username', 'selection_id')
+        .values('match_id', 'user__username', 'selection_id', 'draw')
     ):
-        picks[(s['match_id'], s['user__username'])] = s['selection_id']
+        picks[(s['match_id'], s['user__username'])] = (s['selection_id'], s['draw'])
 
     usernames = list(User.objects.filter(is_active=True, tournament_enrollments__isnull=False).distinct().values_list('username', flat=True))
 
@@ -400,14 +402,16 @@ def compute_streaks():
         streak = []
         # recent_matches is desc (newest first) — matches display order
         for m in recent_matches:
-            winner_team_id = winner_map[m.id]
-            if winner_team_id is None:
+            winner = winner_map[m.id]
+            if winner is None:
                 streak.append('N')
             else:
                 pick = picks.get((m.id, username))
                 if pick is None:
                     streak.append('S')
-                elif pick == winner_team_id:
+                elif winner == 'draw' and pick[1]:
+                    streak.append('W')
+                elif winner != 'draw' and pick[0] == winner:
                     streak.append('W')
                 else:
                     streak.append('L')

@@ -314,7 +314,7 @@ export default function Leaderboard() {
                         {row.display_name || row.username}
                       </span>
                       {isMe && <span className="ml-1 text-xs text-gray-400">(you)</span>}
-                      {currentTournament?.sport !== 'soccer' && row.streak?.length > 0 && (
+                      {row.streak?.length > 0 && (
                         <div className="flex gap-0.5 mt-0.5">
                           {row.streak.map((s, idx) => (
                             <span key={idx} className={`text-[9px] font-bold px-1 py-px rounded ${
