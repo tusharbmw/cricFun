@@ -7,9 +7,16 @@ import Spinner from '@/components/ui/Spinner'
 import { matchStatusBadge } from '@/components/ui/Badge'
 
 const POWERUP_META = {
-  hidden:      { emoji: '🕵️', label: 'Hidden' },
-  fake:        { emoji: '🃏', label: 'Googly' },
-  no_negative: { emoji: '🛡️', label: 'The Wall' },
+  cricket: {
+    hidden:      { emoji: '🕵️', label: 'Hidden' },
+    fake:        { emoji: '🃏', label: 'Googly' },
+    no_negative: { emoji: '🛡️', label: 'The Wall' },
+  },
+  soccer: {
+    hidden:      { emoji: '🕵️', label: 'Hidden' },
+    fake:        { emoji: '🪄', label: 'Dummy' },
+    no_negative: { emoji: '🧤', label: 'Clean Sheet' },
+  },
 }
 
 function FormBadge({ result, opponent, isOpen, onToggle, isRecent }) {
@@ -85,6 +92,9 @@ export default function MatchDetail() {
     refetchInterval: (data) => data?.result === 'IP' ? 30000 : false,
   })
 
+  const isSoccer = match?.tournament?.sport === 'soccer'
+  const PM = POWERUP_META[isSoccer ? 'soccer' : 'cricket']
+
   const { data: sel } = useQuery({
     queryKey: ['match', id, 'selections'],
     queryFn: () => matchesAPI.selections(id).then(r => r.data),
@@ -95,7 +105,7 @@ export default function MatchDetail() {
   const { data: form } = useQuery({
     queryKey: ['match', id, 'team_form'],
     queryFn: () => matchesAPI.teamForm(id).then(r => r.data),
-    enabled: !!match,
+    enabled: !!match && !isSoccer,
     staleTime: 10 * 60 * 1000,
   })
 
@@ -103,6 +113,10 @@ export default function MatchDetail() {
   if (!match) return <p className="text-gray-500 text-center py-10">Match not found.</p>
 
   const dt = new Date(match.datetime)
+  const hasScore = match.home_score != null && match.away_score != null
+  const isCompleted = ['team1', 'team2', 'draw', 'NR'].includes(match.result)
+  const drawPicks = sel?.draw_selections ?? []
+  const showDrawColumn = isSoccer && (match.allows_draw || drawPicks.length > 0)
 
   return (
     <div className="space-y-4">
@@ -111,10 +125,25 @@ export default function MatchDetail() {
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <div>
               {matchStatusBadge(match.result)}
-              <h1 className="text-xl font-bold text-gray-800 mt-2">
-                {match.team1?.name} vs {match.team2?.name}
-              </h1>
-              <p className="text-sm text-gray-500">{match.description}</p>
+              {isSoccer && hasScore ? (
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-lg font-bold text-gray-800">{match.team1?.name}</span>
+                  <span className="text-2xl font-black text-gray-700 tabular-nums">
+                    {match.home_score} — {match.away_score}
+                  </span>
+                  <span className="text-lg font-bold text-gray-800">{match.team2?.name}</span>
+                </div>
+              ) : (
+                <h1 className="text-xl font-bold text-gray-800 mt-2">
+                  {match.team1?.name} vs {match.team2?.name}
+                </h1>
+              )}
+              <p className="text-sm text-gray-500 mt-0.5">{match.description}</p>
+              {isSoccer && hasScore && match.duration && match.duration !== 'REGULAR' && (
+                <p className="text-xs text-gray-400">
+                  {match.duration === 'EXTRA_TIME' ? 'After Extra Time' : 'Penalties'}
+                </p>
+              )}
             </div>
             {match.match_points > 1 && (
               <span className="badge badge-secondary font-semibold">
@@ -135,13 +164,14 @@ export default function MatchDetail() {
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
           <div className="p-4">
             <h2 className="font-semibold text-gray-600 mb-3">Who picked who</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid gap-4 ${showDrawColumn ? 'grid-cols-3' : 'grid-cols-2'}`}>
               {[
-                { teamName: sel.team1, picks: sel.team1_selections ?? [], auto: sel.team1_auto ?? [] },
-                { teamName: sel.team2, picks: sel.team2_selections ?? [], auto: sel.team2_auto ?? [] },
-              ].map(({ teamName, picks, auto }) => (
+                { teamName: sel.team1, picks: sel.team1_selections ?? [], auto: sel.team1_auto ?? [], isDrawCol: false },
+                ...(showDrawColumn ? [{ teamName: '⚖ Draw', picks: drawPicks, auto: [], isDrawCol: true }] : []),
+                { teamName: sel.team2, picks: sel.team2_selections ?? [], auto: sel.team2_auto ?? [], isDrawCol: false },
+              ].map(({ teamName, picks, auto, isDrawCol }) => (
                 <div key={teamName}>
-                  <div className="text-sm font-medium text-gray-800 mb-2">
+                  <div className={`text-sm font-medium mb-2 ${isDrawCol ? 'text-amber-700' : 'text-gray-800'}`}>
                     {teamName} <span className="text-gray-400 text-xs">({picks.length + auto.length})</span>
                   </div>
                   {picks.length === 0 && auto.length === 0
@@ -151,7 +181,7 @@ export default function MatchDetail() {
                           const pp = sel.powerups?.[u]
                           return (
                             <div key={u} className="text-sm text-gray-600 py-0.5">
-                              {u}{pp && <span title={POWERUP_META[pp].label}> {POWERUP_META[pp].emoji}</span>}
+                              {u}{pp && <span title={PM[pp]?.label}> {PM[pp]?.emoji}</span>}
                             </div>
                           )
                         })}
@@ -167,7 +197,7 @@ export default function MatchDetail() {
             </div>
             {Object.keys(sel.powerups ?? {}).length > 0 && (
               <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-1">
-                {Object.values(POWERUP_META).map(({ emoji, label }) => (
+                {Object.values(PM).map(({ emoji, label }) => (
                   <span key={label} className="text-xs text-gray-400">{emoji} {label}</span>
                 ))}
               </div>

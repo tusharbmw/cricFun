@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.models import TournamentEnrollment
-from teams.models import Match, Selection
+from teams.models import Match, Selection, Tournament
 
 logger = logging.getLogger(__name__)
 
@@ -347,7 +347,8 @@ def take_snapshot(match_id):
             names = by_rank[rank]
             name_str = ' & '.join(names) + (' (tied)' if len(names) > 1 else '')
             parts.append(f"{medals[rank]} {name_str}")
-        top3_text = '🏆 Tournament over! Thanks for playing. ' + '  '.join(parts)
+        tournament_name = match.tournament.name if match.tournament else 'Tournament'
+        top3_text = f'🏆 {tournament_name} is over! Thanks for playing.  ' + '  '.join(parts)
         from apps.notifications.tasks import notify_tournament_over
         notify_tournament_over.apply_async(args=[match_id, top3_text], countdown=30)
         logger.info('take_snapshot: tournament-over notification queued for match %s', match_id)
@@ -468,23 +469,98 @@ def _abbreviate(team_name: str) -> str:
     return ''.join(w[0] for w in words).upper()
 
 
+_STAGE_ABBREV = {
+    'Round of 32': 'R32',
+    'Round of 16': 'R16',
+    'Quarter-final': 'QF',
+    'Semi-final': 'SF',
+    'Third Place': '3rd',
+    'Final': 'F',
+}
+
+
+def _abbreviate_stage(description: str) -> str:
+    """'Group A' → 'GA' · 'Quarter-final' → 'QF' · 'Super 8' → 'S8'"""
+    if description in _STAGE_ABBREV:
+        return _STAGE_ABBREV[description]
+    # "Group A" → "GA", "Group Stage" → "GS", "Super 8" → "S8"
+    words = description.split()
+    if len(words) == 1:
+        return description[:2].upper()
+    return ''.join(w[0] for w in words).upper()
+
+
+def _attach_rank_changes_scoped(ranked, tournament):
+    """Tournament-scoped version of _attach_rank_changes."""
+    from apps.leaderboard.models import LeaderboardSnapshot
+    try:
+        snaps = list(
+            LeaderboardSnapshot.objects
+            .filter(match__tournament=tournament)
+            .order_by('-match__datetime')[:2]
+        )
+        prev = snaps[1] if len(snaps) >= 2 else snaps[0]
+        prev_ranks = {r['username']: r['rank'] for r in (prev.rankings or [])}
+    except (IndexError, Exception):
+        prev_ranks = {}
+
+    for entry in ranked:
+        prev_rank = prev_ranks.get(entry['username'])
+        entry['prev_rank'] = prev_rank
+        if prev_rank is None:
+            entry['rank_change'] = 'new'
+        elif entry['rank'] < prev_rank:
+            entry['rank_change'] = 'up'
+        elif entry['rank'] > prev_rank:
+            entry['rank_change'] = 'down'
+        else:
+            entry['rank_change'] = 'same'
+    return ranked
+
+
 # ---------------------------------------------------------------------------
 # API views
 # ---------------------------------------------------------------------------
 
 class LeaderboardView(APIView):
-    """GET /api/v1/leaderboard/  → global leaderboard sorted by total score."""
+    """GET /api/v1/leaderboard/?tournament=<id>  → tournament-scoped leaderboard."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        completed = Match.objects.filter(
-            Q(result='team1') | Q(result='team2') | Q(result='NR')
-        ).count()
-        total = Match.objects.exclude(result='CANC').count()
+        tournament_id = request.query_params.get('tournament')
+        tournament = None
+        if tournament_id:
+            try:
+                tournament = Tournament.objects.get(pk=tournament_id)
+            except Tournament.DoesNotExist:
+                pass
+
+        if tournament:
+            scores = calculate_scores(tournament=tournament)
+            ranked = _build_ranked_list(scores)
+            streaks = compute_streaks()
+            for entry in ranked:
+                entry['streak'] = streaks.get(entry['username'], [])
+            _attach_rank_changes_scoped(ranked, tournament)
+            completed = Match.objects.filter(
+                Q(result='team1') | Q(result='team2') | Q(result='NR'),
+                tournament=tournament,
+            ).count()
+            total = Match.objects.exclude(result='CANC').filter(tournament=tournament).count()
+        else:
+            ranked = get_cached_leaderboard()
+            completed = Match.objects.filter(
+                Q(result='team1') | Q(result='team2') | Q(result='NR')
+            ).count()
+            total = Match.objects.exclude(result='CANC').count()
+
         return Response({
-            'entries': get_cached_leaderboard(),
+            'entries': ranked,
             'matches_completed': completed,
             'matches_total': total,
+            'player_count': len(ranked),
+            'tournament_name': tournament.name if tournament else None,
+            'tournament_season': tournament.season if tournament else None,
         })
 
 
@@ -510,21 +586,38 @@ class LeaderboardHistoryView(APIView):
     def get(self, request):
         from apps.leaderboard.models import LeaderboardSnapshot
 
-        snapshots = (
+        tournament_id = request.query_params.get('tournament')
+        tournament = None
+        if tournament_id:
+            try:
+                tournament = Tournament.objects.get(pk=tournament_id)
+            except Tournament.DoesNotExist:
+                pass
+
+        snapshots_qs = (
             LeaderboardSnapshot.objects
-            .select_related('match__team1', 'match__team2')
+            .select_related('match__team1', 'match__team2', 'match__tournament')
             .order_by('match__datetime')
         )
+        if tournament:
+            snapshots_qs = snapshots_qs.filter(match__tournament=tournament)
+
+        is_soccer = tournament and tournament.sport == Tournament.Sport.SOCCER
 
         result = []
-        for i, snap in enumerate(snapshots, 1):
+        for i, snap in enumerate(snapshots_qs, 1):
             m  = snap.match
             t1 = m.team1.name if m.team1 else '?'
             t2 = m.team2.name if m.team2 else '?'
+            if is_soccer:
+                stage = _abbreviate_stage(m.description or f'M{i}')
+                label = f'{stage}: {_abbreviate(t1)} v {_abbreviate(t2)}'
+            else:
+                label = f'M{i}: {_abbreviate(t1)} vs {_abbreviate(t2)}'
             result.append({
                 'match_id':     m.id,
                 'match_number': i,
-                'label':        f'M{i}: {_abbreviate(t1)} vs {_abbreviate(t2)}',
+                'label':        label,
                 'full_label':   f'{m.description or "Match"}: {t1} vs {t2}',
                 'taken_at':     snap.taken_at.isoformat(),
                 'rankings':     snap.rankings,

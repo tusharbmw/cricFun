@@ -22,7 +22,7 @@ def process_pick_results(match_id):
         logger.error('process_pick_results: match %s not found', match_id)
         return
 
-    if match.result not in ('team1', 'team2', 'NR'):
+    if match.result not in ('team1', 'team2', 'draw', 'NR'):
         logger.warning('process_pick_results: match %s has no final result yet (%s)', match_id, match.result)
         return
 
@@ -68,7 +68,7 @@ def process_pick_results(match_id):
         for u in non_pickers:
             for sub in PushSubscription.objects.filter(user=u):
                 send_push_notification(
-                    sub, title='CricFun', body=message,
+                    sub, title='TushFun', body=message,
                     url='/results', tag=f'pick-result-{match_id}',
                 )
         logger.info(
