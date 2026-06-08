@@ -301,3 +301,122 @@ def test_my_rank_returns_current_user(auth_client, user):
     assert response.data['username'] == user.username
     assert 'rank' in response.data
     assert 'total' in response.data
+
+
+@pytest.mark.django_db
+def test_leaderboard_scoped_to_tournament(
+    auth_client, user, user2, soccer_user, tournament, soccer_tournament, team1, team2
+):
+    """?tournament= param returns only players in that tournament and tournament_name."""
+    response = auth_client.get(LEADERBOARD_URL, {'tournament': soccer_tournament.id})
+    assert response.status_code == 200
+    assert response.data['tournament_name'] == soccer_tournament.name
+    usernames = [e['username'] for e in response.data['entries']]
+    assert soccer_user.username in usernames
+    # cricket-only users must not appear
+    assert user.username not in usernames
+    assert user2.username not in usernames
+
+
+@pytest.mark.django_db
+def test_my_rank_scoped_to_tournament(
+    soccer_auth_client, soccer_user, soccer_user2, soccer_tournament, team1, team2
+):
+    """?tournament= param computes rank from that tournament's matches only."""
+    match = Match.objects.create(
+        team1=team1, team2=team2, tournament=soccer_tournament,
+        datetime=datetime.now(timezone.utc) - timedelta(days=1),
+        result='team1', match_points=1,
+        home_score=2, away_score=0,
+    )
+    Selection.objects.create(user=soccer_user, match=match, selection=team1)
+    Selection.objects.create(user=soccer_user2, match=match, selection=team2)
+
+    response = soccer_auth_client.get(MY_RANK_URL, {'tournament': soccer_tournament.id})
+    assert response.status_code == 200
+    assert response.data['username'] == soccer_user.username
+    assert response.data['total'] > 0
+
+
+@pytest.mark.django_db
+def test_my_rank_cross_tournament_isolation(
+    auth_client, soccer_auth_client, user, soccer_user,
+    tournament, soccer_tournament, team1, team2
+):
+    """A win in cricket must not inflate the soccer tournament rank, and vice versa."""
+    cricket_match = Match.objects.create(
+        team1=team1, team2=team2, tournament=tournament,
+        datetime=datetime.now(timezone.utc) - timedelta(days=1),
+        result='team1', match_points=1,
+        home_score=None, away_score=None,
+    )
+    Selection.objects.create(user=user, match=cricket_match, selection=team1)
+
+    # soccer user checks their own rank scoped to soccer — should be 0 (no soccer picks)
+    response = soccer_auth_client.get(MY_RANK_URL, {'tournament': soccer_tournament.id})
+    assert response.status_code == 200
+    assert response.data['total'] == 0
+
+
+# ---------------------------------------------------------------------------
+# is_high_stakes boundary — auto-assignment and skip counting
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_r32_non_picker_gets_skip_not_penalty(
+    db, soccer_user, soccer_user2, soccer_tournament, team1, team2
+):
+    """R32: non-picker counts as a skip, NOT penalised with points loss."""
+    match = Match.objects.create(
+        team1=team1, team2=team2, tournament=soccer_tournament,
+        description='Round of 32',
+        datetime=datetime.now(timezone.utc) - timedelta(days=1),
+        result='team1', match_points=2,
+        home_score=2, away_score=1, playoff=True,
+    )
+    Selection.objects.create(user=soccer_user, match=match, selection=team1)
+    # soccer_user2 does NOT pick
+
+    scores = calculate_scores(tournament=soccer_tournament)
+    assert scores[soccer_user2.username]['skipped'] == 1
+    assert scores[soccer_user2.username]['lost'] == 0
+
+
+@pytest.mark.django_db
+def test_qf_non_picker_penalised_not_skipped(
+    db, soccer_user, soccer_user2, soccer_tournament, team1, team2
+):
+    """QF: non-picker is auto-assigned losing side and loses points (is_high_stakes=True)."""
+    match = Match.objects.create(
+        team1=team1, team2=team2, tournament=soccer_tournament,
+        description='Quarter-final',
+        datetime=datetime.now(timezone.utc) - timedelta(days=1),
+        result='team1', match_points=5,
+        home_score=2, away_score=1, playoff=True,
+    )
+    Selection.objects.create(user=soccer_user, match=match, selection=team1)
+    # soccer_user2 does NOT pick — should be auto-assigned team2 (loser)
+
+    scores = calculate_scores(tournament=soccer_tournament)
+    assert scores[soccer_user2.username]['skipped'] == 0
+    assert scores[soccer_user2.username]['lost'] > 0
+
+
+@pytest.mark.django_db
+def test_r16_non_picker_gets_skip_not_penalty(
+    db, soccer_user, soccer_user2, soccer_tournament, team1, team2
+):
+    """R16: same as R32 — powerups open, no auto-assignment penalty."""
+    match = Match.objects.create(
+        team1=team1, team2=team2, tournament=soccer_tournament,
+        description='Round of 16',
+        datetime=datetime.now(timezone.utc) - timedelta(days=1),
+        result='team2', match_points=3,
+        home_score=0, away_score=1, playoff=True,
+    )
+    Selection.objects.create(user=soccer_user2, match=match, selection=team2)
+    # soccer_user does NOT pick
+
+    scores = calculate_scores(tournament=soccer_tournament)
+    assert scores[soccer_user.username]['skipped'] == 1
+    assert scores[soccer_user.username]['lost'] == 0

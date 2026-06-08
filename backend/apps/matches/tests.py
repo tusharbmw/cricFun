@@ -223,3 +223,65 @@ def test_fetch_football_matches_updates_changed_fields(soccer_tournament):
     from teams.models import Match
     m = Match.objects.get(match_id='999001')
     assert m.datetime.hour == 18
+
+
+# ---------------------------------------------------------------------------
+# TBD team fallback — null team names in API response
+# ---------------------------------------------------------------------------
+
+KNOCKOUT_MATCH_TBD = {
+    'id': 999002,
+    'utcDate': '2026-07-04T20:00:00Z',
+    'status': 'SCHEDULED',
+    'stage': 'QUARTER_FINALS',
+    'group': None,
+    'score': {
+        'winner': None,
+        'duration': 'REGULAR',
+        'fullTime': {'home': None, 'away': None},
+    },
+    'homeTeam': {'name': None, 'tla': None, 'crest': ''},
+    'awayTeam': {'name': None, 'tla': None, 'crest': ''},
+}
+
+KNOCKOUT_MATCH_CONFIRMED = {
+    **KNOCKOUT_MATCH_TBD,
+    'homeTeam': {'name': 'France', 'tla': 'FRA', 'crest': ''},
+    'awayTeam': {'name': 'Spain',  'tla': 'ESP', 'crest': ''},
+}
+
+
+@pytest.mark.django_db
+def test_fetch_football_matches_creates_tbd_team_when_null(soccer_tournament):
+    """Null team name in API response → match created with 'TBD' as team name."""
+    soccer_tournament.external_id = 'WC'
+    soccer_tournament.save()
+
+    with patch('apps.matches.footballapi.fetch_matches', return_value=[KNOCKOUT_MATCH_TBD]):
+        from apps.matches.tasks import fetch_football_matches
+        fetch_football_matches(soccer_tournament.id)
+
+    from teams.models import Match, Team
+    assert Match.objects.filter(match_id='999002').exists()
+    m = Match.objects.get(match_id='999002')
+    assert m.team1.name == 'TBD'
+    assert m.team2.name == 'TBD'
+
+
+@pytest.mark.django_db
+def test_fetch_football_matches_updates_tbd_to_real_team(soccer_tournament):
+    """When API later provides real names, the TBD team record is updated."""
+    soccer_tournament.external_id = 'WC'
+    soccer_tournament.save()
+
+    with patch('apps.matches.footballapi.fetch_matches', return_value=[KNOCKOUT_MATCH_TBD]):
+        from apps.matches.tasks import fetch_football_matches
+        fetch_football_matches(soccer_tournament.id)
+
+    with patch('apps.matches.footballapi.fetch_matches', return_value=[KNOCKOUT_MATCH_CONFIRMED]):
+        fetch_football_matches(soccer_tournament.id)
+
+    from teams.models import Match
+    m = Match.objects.get(match_id='999002')
+    assert m.team1.name == 'France'
+    assert m.team2.name == 'Spain'

@@ -390,6 +390,95 @@ def test_powerup_allowed_at_soccer_r32(
 
 
 # ---------------------------------------------------------------------------
+# TBD team guard
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_cannot_pick_when_team_is_tbd(
+    api_client, soccer_user, soccer_tournament
+):
+    """Pick is rejected when a team has 'TBD' as its name (unconfirmed knockout)."""
+    from teams.models import Team, Match
+    tbd1 = Team.objects.create(name='TBD')
+    tbd2 = Team.objects.create(name='TBD2real')
+    tbd2.name = 'TBD'
+    tbd2.save()
+    match = Match.objects.create(
+        team1=tbd1, team2=tbd2, tournament=soccer_tournament,
+        description='Round of 16',
+        datetime=datetime.now(timezone.utc) + timedelta(hours=48),
+        result='TBD', match_points=3, playoff=True,
+    )
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    response = api_client.post(PICKS_URL, {'match': match.id, 'selection': tbd1.id})
+    assert response.status_code == 400
+    assert 'not yet confirmed' in str(response.data).lower()
+
+
+@pytest.mark.django_db
+def test_cannot_pick_when_one_team_is_tbd(
+    api_client, soccer_user, soccer_tournament, team1
+):
+    """Pick is rejected even when only one of the two teams is TBD."""
+    from teams.models import Team, Match
+    tbd = Team.objects.create(name='TBD')
+    match = Match.objects.create(
+        team1=team1, team2=tbd, tournament=soccer_tournament,
+        description='Round of 16',
+        datetime=datetime.now(timezone.utc) + timedelta(hours=48),
+        result='TBD', match_points=3, playoff=True,
+    )
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    response = api_client.post(PICKS_URL, {'match': match.id, 'selection': team1.id})
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Tournament-scoped stats
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_stats_scoped_to_tournament(
+    api_client, user, tournament, soccer_user, soccer_tournament,
+    upcoming_match, soccer_group_match, team1,
+):
+    """Powerup used in cricket tournament must not reduce soccer tournament budget."""
+    # Apply hidden powerup on cricket pick
+    refresh = RefreshToken.for_user(user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': upcoming_match.id, 'selection': team1.id})
+    cricket_sel = Selection.objects.get(user=user)
+    api_client.post(f'{PICKS_URL}{cricket_sel.id}/powerup/', {'powerup_type': 'hidden'})
+
+    # Soccer user checks their stats scoped to soccer tournament
+    refresh2 = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh2.access_token}')
+    response = api_client.get(STATS_URL, {'tournament': soccer_tournament.id})
+    assert response.status_code == 200
+    # Soccer user has not used any powerups → full budget of 5
+    assert response.data['hidden_count'] == 5
+    assert response.data['fake_count'] == 5
+    assert response.data['no_negative_count'] == 5
+
+
+@pytest.mark.django_db
+def test_stats_missing_picks_scoped_to_tournament(
+    api_client, soccer_user, soccer_tournament, soccer_group_match,
+    tournament, upcoming_match,
+):
+    """missing_picks count only includes matches from the requested tournament."""
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    # Request stats scoped to soccer tournament only
+    response = api_client.get(STATS_URL, {'tournament': soccer_tournament.id})
+    assert response.status_code == 200
+    # soccer_group_match is unpicked and within window — should be 1
+    assert response.data['missing_picks'] == 1
+
+
+# ---------------------------------------------------------------------------
 # Enrollment guard
 # ---------------------------------------------------------------------------
 
