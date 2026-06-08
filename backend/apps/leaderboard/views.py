@@ -405,13 +405,13 @@ def compute_streaks():
             winner = winner_map[m.id]
             if winner is None:
                 streak.append('N')
-            elif winner == 'draw':
-                streak.append('D')
             else:
                 pick = picks.get((m.id, username))
                 if pick is None:
                     streak.append('S')
-                elif pick[0] == winner:
+                elif winner == 'draw' and pick[1]:
+                    streak.append('D')
+                elif winner != 'draw' and pick[0] == winner:
                     streak.append('W')
                 else:
                     streak.append('L')
