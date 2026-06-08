@@ -1,5 +1,5 @@
-export default function PickDistribution({ team1, team2, team1Count, team2Count, hiddenCount, isCompleted }) {
-  const total = team1Count + team2Count + hiddenCount
+export default function PickDistribution({ team1, team2, team1Count, team2Count, drawCount = 0, hiddenCount, isCompleted }) {
+  const total = team1Count + team2Count + drawCount + hiddenCount
   if (total === 0) return null
 
   return (
@@ -14,6 +14,14 @@ export default function PickDistribution({ team1, team2, team1Count, team2Count,
             style={{ flex: team1Count, background: '#E6F1FB', color: '#0C447C' }}
           >
             {team1 ? `${team1.split(' ').map(w => w[0]).join('')}: ` : ''}{team1Count}
+          </div>
+        )}
+        {drawCount > 0 && (
+          <div
+            className="flex items-center justify-center text-xs font-medium rounded px-1.5 py-1.5"
+            style={{ flex: drawCount, background: '#FBF5E6', color: '#7A5A1A' }}
+          >
+            ⚖ {drawCount}
           </div>
         )}
         {team2Count > 0 && (

@@ -8,15 +8,29 @@ import PickDistribution from './PickDistribution'
 import { useCountdown } from '@/hooks/useCountdown'
 
 const POWERUP_META = {
-  hidden:      { emoji: '🕵️', label: 'Hidden',  key: 'hidden_count',      suffix: 'from others' },
-  fake:        { emoji: '🃏', label: 'Googly',  key: 'fake_count',        suffix: 'for others' },
-  no_negative: { emoji: '🛡️', label: 'The Wall', key: 'no_negative_count', suffix: 'applied' },
+  cricket: {
+    hidden:      { emoji: '🕵️', label: 'Hidden',      key: 'hidden_count',      suffix: 'from others' },
+    fake:        { emoji: '🃏', label: 'Googly',      key: 'fake_count',        suffix: 'for others' },
+    no_negative: { emoji: '🛡️', label: 'The Wall',   key: 'no_negative_count', suffix: 'applied' },
+  },
+  soccer: {
+    hidden:      { emoji: '🕵️', label: 'Hidden',      key: 'hidden_count',      suffix: 'from others' },
+    fake:        { emoji: '🪄', label: 'Dummy',        key: 'fake_count',        suffix: 'for others' },
+    no_negative: { emoji: '🧤', label: 'Clean Sheet', key: 'no_negative_count', suffix: 'applied' },
+  },
+}
+
+function soccerBP(match) {
+  if (match.home_score === null || match.away_score === null) return match.match_points
+  if (match.result === 'draw') return match.match_points * (match.home_score + match.away_score + 1)
+  const diff = Math.abs(match.home_score - match.away_score)
+  return match.match_points * Math.max(1, Math.min(diff, 3))
 }
 
 // PowerPlay badge pinned to top-center of a picked card
 function BoosterBadge({ powerup, onRemove }) {
   if (!powerup) return null
-  const { emoji, label } = POWERUP_META[powerup]
+  const { emoji, label } = powerup
   return (
     <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full shadow border"
       style={{ background: '#EEEDFE', color: '#3C3489', borderColor: '#AFA9EC' }}>
@@ -52,7 +66,12 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   const countdown = useCountdown(match.datetime)
   const pickWindowMs = (stats?.pick_window_days ?? 5) * 24 * 60 * 60 * 1000
 
-  const isCompleted = ['team1', 'team2', 'NR'].includes(match.result)
+  const isSoccer = match.tournament?.sport === 'soccer'
+  const sport = isSoccer ? 'soccer' : 'cricket'
+  const PM = POWERUP_META[sport]
+
+  const isCompleted = ['team1', 'team2', 'NR', 'draw'].includes(match.result)
+  const isDrawResult = match.result === 'draw'
   const isLive = ['IP', 'TOSS', 'DLD'].includes(match.result)
   const isUpcoming = match.result === 'TBD'
   const isBeyondWindow = isUpcoming && dt.getTime() - now > pickWindowMs
@@ -60,16 +79,18 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   const isUrgent = isUpcoming && !isBeyondWindow && dt.getTime() - now < 24 * 3600 * 1000
 
   const hasPick = !!pick
+  const myPickDraw = pick?.draw === true
   const powerup = pick?.hidden ? 'hidden' : pick?.fake ? 'fake' : pick?.no_negative ? 'no_negative' : null
   const powersDisabled = match.playoff
 
-  // Support both active picks (pick.selection = team ID) and history picks (pick.selected_team_name)
   const myPickId = pick?.selection ?? null
   const myPickName = pick?.selected_team_name ?? null
 
   const winner = match.result === 'team1' ? match.team1?.id : match.result === 'team2' ? match.team2?.id : null
   const winnerName = match.result === 'team1' ? match.team1?.name : match.result === 'team2' ? match.team2?.name : null
-  const userWon = hasPick && winner !== null && (myPickId ? myPickId === winner : myPickName === winnerName)
+  const userWon = isDrawResult
+    ? myPickDraw
+    : hasPick && winner !== null && (myPickId ? myPickId === winner : myPickName === winnerName)
 
   const { data: sel } = useQuery({
     queryKey: ['match', match.id, 'selections'],
@@ -79,37 +100,46 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
 
   const isSkipped = isCompleted && !hasPick
 
+  const bp = isSoccer ? soccerBP(match) : match.match_points
+
   let pointsDisplay = null
   if (isSkipped) {
     pointsDisplay = { text: '0 pts', skipped: true }
-  } else if (isCompleted && hasPick && sel && winner) {
+  } else if (isCompleted && hasPick && sel && (winner !== null || isDrawResult)) {
     if (userWon) {
-      const loserCount = match.result === 'team1' ? sel.team2_count : sel.team1_count
-      pointsDisplay = { text: `+${loserCount * match.match_points} pts`, positive: true, count: loserCount }
-    } else {
-      const winnerCount = match.result === 'team1' ? sel.team1_count : sel.team2_count
+      const wrongCount = isDrawResult
+        ? (sel.team1_count ?? 0) + (sel.team2_count ?? 0)
+        : match.result === 'team1'
+          ? (sel.team2_count ?? 0) + (sel.draw_count ?? 0)
+          : (sel.team1_count ?? 0) + (sel.draw_count ?? 0)
+      pointsDisplay = { text: `+${wrongCount * bp} pts`, positive: true, count: wrongCount, bp }
+    } else if (match.result !== 'NR') {
+      const correctCount = isDrawResult
+        ? (sel.draw_count ?? 0)
+        : match.result === 'team1' ? (sel.team1_count ?? 0) : (sel.team2_count ?? 0)
       if (powerup === 'no_negative') {
         pointsDisplay = { text: '0 pts', positive: true, wall: true }
       } else {
-        pointsDisplay = { text: `-${winnerCount * match.match_points} pts`, positive: false, count: winnerCount }
+        pointsDisplay = { text: `-${correctCount * bp} pts`, positive: false, count: correctCount, bp }
       }
     }
   }
 
-  async function handlePick(teamId) {
+  async function handlePick(teamIdOrDraw) {
     if (saving) return
     setSaving(true); setError('')
+    const isDraw = teamIdOrDraw === 'draw'
     try {
       if (!hasPick) {
-        await picksAPI.place({ match: match.id, selection: teamId })
+        await picksAPI.place(isDraw ? { match: match.id, draw: true } : { match: match.id, selection: teamIdOrDraw })
       } else {
-        await picksAPI.update(pick.id, { selection: teamId })
+        await picksAPI.update(pick.id, isDraw ? { draw: true } : { draw: false, selection: teamIdOrDraw })
       }
       qc.invalidateQueries({ queryKey: ['picks', 'active'] })
       qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
       setShowChangePick(false)
     } catch (err) {
-      setError(err.response?.data?.non_field_errors?.[0] ?? 'Failed to save')
+      setError(err.response?.data?.non_field_errors?.[0] ?? err.response?.data?.draw?.[0] ?? 'Failed to save')
     } finally { setSaving(false) }
   }
 
@@ -142,15 +172,14 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   const cardBorder = isUrgent ? 'border-2 border-amber-400' : 'border border-gray-200'
   const showPickButtons = isUpcoming && !isLocked && (!hasPick || showChangePick)
 
-  // Team display state
-  const t1Picked = hasPick && !showChangePick && (myPickId ? myPickId === match.team1?.id : myPickName === match.team1?.name)
-  const t2Picked = hasPick && !showChangePick && (myPickId ? myPickId === match.team2?.id : myPickName === match.team2?.name)
+  const drawPickedActive = hasPick && !showChangePick && myPickDraw
+  const t1Picked = hasPick && !showChangePick && !myPickDraw && (myPickId ? myPickId === match.team1?.id : myPickName === match.team1?.name)
+  const t2Picked = hasPick && !showChangePick && !myPickDraw && (myPickId ? myPickId === match.team2?.id : myPickName === match.team2?.name)
   const isNR = match.result === 'NR'
   const t1Won = isCompleted && match.result === 'team1'
   const t2Won = isCompleted && match.result === 'team2'
-  const t1Lost = isCompleted && !isNR && t1Picked && !userWon
-  const t2Lost = isCompleted && !isNR && t2Picked && !userWon
-  // Winner that I didn't pick — show differently from "my pick won"
+  const t1Lost = isCompleted && !isNR && !isDrawResult && t1Picked && !userWon
+  const t2Lost = isCompleted && !isNR && !isDrawResult && t2Picked && !userWon
   const t1WinnerNotPicked = t1Won && !t1Picked
   const t2WinnerNotPicked = t2Won && !t2Picked
 
@@ -162,7 +191,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
       onDrop={onDrop}
     >
       {powerup && !isCompleted && (
-        <BoosterBadge powerup={powerup} onRemove={() => applyPowerup(powerup)} />
+        <BoosterBadge powerup={PM[powerup]} onRemove={() => applyPowerup(powerup)} />
       )}
 
       <div className="p-4 pt-5">
@@ -197,7 +226,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
         {/* Teams row */}
         <div className="flex items-start justify-center gap-3 mb-3">
           {/* Team 1 */}
-          <div className={`flex-1 flex flex-col items-center transition-opacity ${hasPick && !showChangePick && !t1Picked && !t1Won ? 'opacity-30' : ''}`}>
+          <div className={`flex-1 flex flex-col items-center transition-opacity ${hasPick && !showChangePick && !t1Picked && !t1Won && !drawPickedActive ? 'opacity-30' : ''}`}>
             <div className="relative mb-1.5">
               {/* My pick that won — green ✓ */}
               {t1Picked && !t1Lost && (
@@ -220,10 +249,24 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
             </span>
           </div>
 
-          <div className="text-gray-400 font-medium text-sm pt-3">VS</div>
+          {/* VS / Soccer score */}
+          {isSoccer && (isLive || isCompleted) && match.home_score !== null ? (
+            <div className="flex flex-col items-center gap-0.5 pt-1 shrink-0">
+              <span className="text-lg font-bold text-gray-800 tabular-nums">
+                {match.home_score} — {match.away_score}
+              </span>
+              {isDrawResult && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#FBF5E6', color: '#7A5A1A' }}>⚖ DRAW</span>
+              )}
+              {match.duration === 'PENALTY_SHOOTOUT' && <span className="text-[10px] text-gray-400">Penalties</span>}
+              {match.duration === 'EXTRA_TIME' && <span className="text-[10px] text-gray-400">AET</span>}
+            </div>
+          ) : (
+            <div className="text-gray-400 font-medium text-sm pt-3">VS</div>
+          )}
 
           {/* Team 2 */}
-          <div className={`flex-1 flex flex-col items-center transition-opacity ${hasPick && !showChangePick && !t2Picked && !t2Won ? 'opacity-30' : ''}`}>
+          <div className={`flex-1 flex flex-col items-center transition-opacity ${hasPick && !showChangePick && !t2Picked && !t2Won && !drawPickedActive ? 'opacity-30' : ''}`}>
             <div className="relative mb-1.5">
               {/* My pick that won — green ✓ */}
               {t2Picked && !t2Lost && (
@@ -271,8 +314,8 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
           )}
           {hasPick && !isCompleted && (
             <div className="text-xs font-medium mt-1 text-green-600">
-              ✓ You picked {t1Picked ? match.team1?.name : match.team2?.name}
-              {powerup && ` · ${POWERUP_META[powerup].emoji} ${POWERUP_META[powerup].label} ${POWERUP_META[powerup].suffix}`}
+              ✓ You picked {myPickDraw ? '⚖ Draw' : t1Picked ? match.team1?.name : match.team2?.name}
+              {powerup && ` · ${PM[powerup].emoji} ${PM[powerup].label} ${PM[powerup].suffix}`}
             </div>
           )}
           {isBeyondWindow && (
@@ -287,6 +330,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
           <PickDistribution
             team1={sel.team1} team2={sel.team2}
             team1Count={sel.team1_count} team2Count={sel.team2_count}
+            drawCount={sel.draw_count ?? 0}
             hiddenCount={sel.hidden_count ?? 0}
             isCompleted={isCompleted}
           />
@@ -301,10 +345,10 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
         {isCompleted && hasPick && pointsDisplay && sel && (
           <p className="text-xs mt-2 font-medium" style={pointsDisplay.positive ? { color: '#085041' } : { color: '#791F1F' }}>
             {pointsDisplay.wall
-              ? `🛡️ The Wall blocked your loss — 0 pts`
+              ? `${PM.no_negative.emoji} ${PM.no_negative.label} blocked your loss — 0 pts`
               : pointsDisplay.positive
-                ? `You earned ${pointsDisplay.text} (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the loser)`
-                : `You lost ${pointsDisplay.count * match.match_points} pts (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the winner)`
+                ? `You earned ${pointsDisplay.text} (BP=${bp} × ${pointsDisplay.count} rivals wrong)`
+                : `You lost ${pointsDisplay.count * bp} pts (BP=${bp} × ${pointsDisplay.count} rivals right)`
             }
           </p>
         )}
@@ -318,6 +362,13 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
                 style={{ background: '#E6F1FB', color: '#0C447C' }}>
                 {saving ? '…' : `Pick ${match.team1?.name}`}
               </button>
+              {match.allows_draw && (
+                <button onClick={() => handlePick('draw')} disabled={saving}
+                  className="py-2.5 px-3 rounded-lg text-sm font-medium transition border-2 border-dashed shrink-0"
+                  style={{ borderColor: '#C49A36', color: '#7A5A1A', background: '#FBF5E6' }}>
+                  {saving ? '…' : '⚖ Draw'}
+                </button>
+              )}
               <button onClick={() => handlePick(match.team2?.id)} disabled={saving}
                 className="flex-1 py-2.5 rounded-lg text-sm font-medium transition"
                 style={{ background: '#EAF3DE', color: '#27500A' }}>
@@ -340,7 +391,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
                 </div>
                 {powerup && (
                   <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
-                    {POWERUP_META[powerup].emoji} {POWERUP_META[powerup].label} applied — remove it to see option to skip match
+                    {PM[powerup].emoji} {PM[powerup].label} applied — remove it to see option to skip match
                   </p>
                 )}
               </div>
@@ -366,7 +417,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
           >
             {isApplying
               ? <span className="loading loading-spinner loading-xs" />
-              : `Apply ${POWERUP_META[selectedBooster]?.emoji} ${POWERUP_META[selectedBooster]?.label}`
+              : `Apply ${PM[selectedBooster]?.emoji} ${PM[selectedBooster]?.label}`
             }
           </button>
         )}
@@ -374,7 +425,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
         {/* Powerup buttons (mobile tap) */}
         {hasPick && !isLocked && !isCompleted && !powersDisabled && !showChangePick && (
           <div className="flex gap-2 flex-wrap mt-3">
-            {Object.entries(POWERUP_META).map(([type, { emoji, label, key }]) => {
+            {Object.entries(PM).map(([type, { emoji, label, key }]) => {
               const available = (stats?.[key] ?? 0) > 0
               const isActive = powerup === type
               const otherActive = !!powerup && !isActive

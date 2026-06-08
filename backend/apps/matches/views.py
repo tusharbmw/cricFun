@@ -70,9 +70,9 @@ class MatchViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def completed(self, request):
-        """Completed matches (team1/team2/NR won), no pagination."""
+        """Completed matches (team1/team2/draw/NR), no pagination."""
         qs = self.get_queryset().filter(
-            Q(result='team1') | Q(result='team2') | Q(result='NR')
+            Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR')
         ).order_by('-datetime')
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
