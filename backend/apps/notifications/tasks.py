@@ -292,7 +292,17 @@ def notify_tournament_over(match_id, top3_text):
     from apps.notifications.models import Notification, PushSubscription
     from apps.notifications.utils import send_push_notification
 
-    users = list(User.objects.filter(is_active=True, userprofile__approved=True))
+    from teams.models import Match
+    from apps.users.models import TournamentEnrollment
+    try:
+        tournament = Match.objects.get(pk=match_id).tournament
+        enrolled_user_ids = TournamentEnrollment.objects.filter(
+            tournament=tournament
+        ).values_list('user_id', flat=True)
+        users = list(User.objects.filter(is_active=True, id__in=enrolled_user_ids))
+    except Match.DoesNotExist:
+        users = []
+
     Notification.objects.bulk_create([
         Notification(
             user=u, type='rank_change', message=top3_text,
@@ -302,7 +312,7 @@ def notify_tournament_over(match_id, top3_text):
     ])
 
     subs = (PushSubscription.objects
-            .filter(user__is_active=True, user__userprofile__approved=True)
+            .filter(user__is_active=True, user__id__in=[u.id for u in users])
             .select_related('user'))
     sent = 0
     for sub in subs:

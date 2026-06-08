@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.users.models import TournamentEnrollment
 from teams.models import Match, Selection
 
 logger = logging.getLogger(__name__)
@@ -22,20 +23,33 @@ CACHE_TTL = 86400  # 24 hours
 # Core scoring logic
 # ---------------------------------------------------------------------------
 
-def calculate_scores(upto_match_id=None):
+def calculate_scores(upto_match_id=None, tournament=None):
     """
-    Compute scores for all active users.
+    Compute scores for users enrolled in a tournament.
 
     Args:
         upto_match_id: If given, only count matches with datetime <= that match's
                        datetime. Used by backfill to reconstruct historical states.
                        Default None = use all completed matches.
+        tournament: Tournament instance to scope users and matches. When None,
+                    includes all users with any enrollment and all completed matches.
 
     Returns dict: {username: {user_id, username, won, lost, skipped,
                                matches_won, matches_lost}}
     """
     scores = {}
-    for u in User.objects.filter(is_active=True, userprofile__approved=True):
+    if tournament is not None:
+        enrolled = User.objects.filter(
+            is_active=True,
+            tournament_enrollments__tournament=tournament,
+        )
+    else:
+        enrolled = User.objects.filter(
+            is_active=True,
+            tournament_enrollments__isnull=False,
+        ).distinct()
+
+    for u in enrolled:
         scores[u.username] = {
             'user_id':       u.id,
             'username':      u.username,
@@ -51,6 +65,9 @@ def calculate_scores(upto_match_id=None):
     matches_qs = Match.objects.filter(
         Q(result='team1') | Q(result='team2')
     ).prefetch_related('selection_set__user', 'selection_set__selection')
+
+    if tournament is not None:
+        matches_qs = matches_qs.filter(tournament=tournament)
 
     if upto_match_id is not None:
         try:
@@ -360,7 +377,7 @@ def compute_streaks():
     ):
         picks[(s['match_id'], s['user__username'])] = s['selection_id']
 
-    usernames = list(User.objects.filter(is_active=True, userprofile__approved=True).values_list('username', flat=True))
+    usernames = list(User.objects.filter(is_active=True, tournament_enrollments__isnull=False).distinct().values_list('username', flat=True))
 
     streaks = {}
     for username in usernames:

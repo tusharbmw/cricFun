@@ -7,7 +7,8 @@ from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from teams.models import Team, Match, Selection
+from teams.models import Team, Match, Selection, Tournament
+from apps.users.models import TournamentEnrollment
 
 
 @pytest.fixture
@@ -16,18 +17,26 @@ def api_client():
 
 
 @pytest.fixture
-def user(db):
+def tournament(db):
+    return Tournament.objects.create(
+        name='Test League',
+        sport=Tournament.Sport.CRICKET,
+        season='2024',
+        is_active=True,
+    )
+
+
+@pytest.fixture
+def user(db, tournament):
     u = User.objects.create_user(username='testuser', password='testpass123')
-    u.userprofile.approved = True
-    u.userprofile.save()
+    TournamentEnrollment.objects.create(user=u, tournament=tournament)
     return u
 
 
 @pytest.fixture
-def user2(db):
+def user2(db, tournament):
     u = User.objects.create_user(username='testuser2', password='testpass123')
-    u.userprofile.approved = True
-    u.userprofile.save()
+    TournamentEnrollment.objects.create(user=u, tournament=tournament)
     return u
 
 
@@ -49,11 +58,12 @@ def team2(db):
 
 
 @pytest.fixture
-def upcoming_match(db, team1, team2):
+def upcoming_match(db, team1, team2, tournament):
     """A future TBD match."""
     return Match.objects.create(
         team1=team1,
         team2=team2,
+        tournament=tournament,
         datetime=datetime.now(timezone.utc) + timedelta(hours=24),
         result='TBD',
         match_points=1,
@@ -62,11 +72,12 @@ def upcoming_match(db, team1, team2):
 
 
 @pytest.fixture
-def past_match(db, team1, team2):
+def past_match(db, team1, team2, tournament):
     """A match that started in the past — picks should be locked."""
     return Match.objects.create(
         team1=team1,
         team2=team2,
+        tournament=tournament,
         datetime=datetime.now(timezone.utc) - timedelta(hours=2),
         result='TBD',
         match_points=1,
@@ -75,10 +86,11 @@ def past_match(db, team1, team2):
 
 
 @pytest.fixture
-def completed_match_team1_won(db, team1, team2):
+def completed_match_team1_won(db, team1, team2, tournament):
     return Match.objects.create(
         team1=team1,
         team2=team2,
+        tournament=tournament,
         datetime=datetime.now(timezone.utc) - timedelta(days=1),
         result='team1',
         match_points=1,

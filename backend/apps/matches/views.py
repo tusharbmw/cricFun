@@ -169,7 +169,9 @@ class MatchViewSet(viewsets.ModelViewSet):
         hidden_count = 0
         powerups = {}  # {username: 'hidden'|'fake'|'no_negative'} — only populated when locked
 
-        for s in match.selection_set.select_related('user', 'selection', 'user__userprofile').filter(user__userprofile__approved=True):
+        for s in match.selection_set.select_related('user', 'selection').filter(
+            user__tournament_enrollments__tournament=match.tournament
+        ):
             is_own = s.user_id == request.user.id
 
             if not is_locked and not is_own:
@@ -207,8 +209,10 @@ class MatchViewSet(viewsets.ModelViewSet):
         if match.playoff and match.result in ('team1', 'team2'):
             from django.contrib.auth.models import User as _User
             all_usernames = set(
-                _User.objects.filter(is_active=True, userprofile__approved=True)
-                .values_list('username', flat=True)
+                _User.objects.filter(
+                    is_active=True,
+                    tournament_enrollments__tournament=match.tournament,
+                ).values_list('username', flat=True)
             )
             picked_usernames = set(sel1_users) | set(sel2_users)
             non_pickers = sorted(all_usernames - picked_usernames)

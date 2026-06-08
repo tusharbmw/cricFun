@@ -6,13 +6,23 @@ from django.dispatch import receiver
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='userprofile')
-    approved = models.BooleanField(
-        default=False,
-        help_text='User participates in leaderboard and scoring only when approved.',
-    )
 
     def __str__(self):
-        return f'{self.user.username} ({"approved" if self.approved else "pending"})'
+        return self.user.username
+
+
+class TournamentEnrollment(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tournament_enrollments')
+    tournament = models.ForeignKey(
+        'teams.Tournament', on_delete=models.CASCADE, related_name='enrollments'
+    )
+
+    class Meta:
+        unique_together = [['user', 'tournament']]
+        ordering = ['tournament__name', 'user__username']
+
+    def __str__(self):
+        return f'{self.user.username} → {self.tournament}'
 
 
 @receiver(post_save, sender=User)

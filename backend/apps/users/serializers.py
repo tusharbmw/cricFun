@@ -3,18 +3,17 @@ from rest_framework import serializers
 
 
 class UserSerializer(serializers.ModelSerializer):
-    is_approved = serializers.SerializerMethodField()
+    enrolled_tournament_ids = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'date_joined', 'is_staff', 'is_approved']
-        read_only_fields = ['date_joined', 'is_staff', 'is_approved']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'date_joined', 'is_staff', 'enrolled_tournament_ids']
+        read_only_fields = ['date_joined', 'is_staff', 'enrolled_tournament_ids']
 
-    def get_is_approved(self, obj):
-        try:
-            return obj.userprofile.approved
-        except Exception:
-            return False
+    def get_enrolled_tournament_ids(self, obj):
+        return list(
+            obj.tournament_enrollments.values_list('tournament_id', flat=True)
+        )
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):

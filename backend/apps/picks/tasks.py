@@ -53,8 +53,10 @@ def process_pick_results(match_id):
         )
         picked_user_ids = set(selections.values_list('user_id', flat=True))
         non_pickers = list(
-            User.objects.filter(is_active=True, userprofile__approved=True)
-            .exclude(id__in=picked_user_ids)
+            User.objects.filter(
+                is_active=True,
+                tournament_enrollments__tournament=match.tournament,
+            ).exclude(id__in=picked_user_ids)
         )
         Notification.objects.bulk_create([
             Notification(
