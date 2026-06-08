@@ -327,7 +327,7 @@ function ResultCard({ match, myPick, highlighted }) {
                 ? `💀 Playoff penalty — you didn't pick and were assigned to the losing side (${pointsDisplay.bp} pt × ${pointsDisplay.count} winners)`
                 : pointsDisplay?.positive
                   ? `You earned ${pointsDisplay?.text} (${pointsDisplay.bp} pt × ${pointsDisplay.count} opponents who picked the loser)`
-                  : `You lost ${pointsDisplay?.count * pointsDisplay?.bp} pts (${pointsDisplay?.bp} pt × ${pointsDisplay?.count} opponents who picked the winner)`
+                  : `You lost ${pointsDisplay?.count * pointsDisplay?.bp} pts (${pointsDisplay?.bp} pt × ${pointsDisplay?.count} opponents who picked the ${isDrawResult ? 'draw' : 'winner'})`
             }
           </p>
         )}
