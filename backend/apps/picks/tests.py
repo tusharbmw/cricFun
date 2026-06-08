@@ -347,6 +347,49 @@ def test_soccer_fake_powerup_toggle_off_clears_decoy(
 
 
 # ---------------------------------------------------------------------------
+# Soccer R32 — playoff=True but powerups still open, hidden not auto-applied
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_soccer_r32_draw_rejected(
+    api_client, soccer_user, soccer_tournament, soccer_r32_match
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    response = api_client.post(PICKS_URL, {
+        'match': soccer_r32_match.id,
+        'draw': True,
+    })
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_soccer_r32_pick_not_auto_hidden(
+    api_client, soccer_user, soccer_tournament, soccer_r32_match, team1
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': soccer_r32_match.id, 'selection': team1.id})
+    sel = Selection.objects.get()
+    assert sel.hidden is False
+
+
+@pytest.mark.django_db
+def test_powerup_allowed_at_soccer_r32(
+    api_client, soccer_user, soccer_tournament, soccer_r32_match, team1
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': soccer_r32_match.id, 'selection': team1.id})
+    sel = Selection.objects.get()
+    url = f'{PICKS_URL}{sel.id}/powerup/'
+    response = api_client.post(url, {'powerup_type': 'no_negative'})
+    assert response.status_code == 200
+    sel.refresh_from_db()
+    assert sel.no_negative is True
+
+
+# ---------------------------------------------------------------------------
 # Enrollment guard
 # ---------------------------------------------------------------------------
 

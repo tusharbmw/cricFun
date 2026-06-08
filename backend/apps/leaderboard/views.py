@@ -93,7 +93,7 @@ def calculate_scores(upto_match_id=None, tournament=None):
                 sel2.append(s.user.username)
             if s.no_negative:
                 no_neg.append(s.user.username)
-            if (s.hidden and not mr.playoff) or s.fake or s.no_negative:
+            if (s.hidden and not mr.is_high_stakes) or s.fake or s.no_negative:
                 if s.user.username in scores:
                     scores[s.user.username]['powerups_used'] += 1
 

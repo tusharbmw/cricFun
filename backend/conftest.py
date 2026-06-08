@@ -146,8 +146,24 @@ def soccer_group_match(db, team1, team2, soccer_tournament):
 
 
 @pytest.fixture
+def soccer_r32_match(db, team1, team2, soccer_tournament):
+    """A future TBD soccer Round of 32 (playoff=True, no draw, powerups still open, hidden NOT auto-applied)."""
+    return Match.objects.create(
+        team1=team1,
+        team2=team2,
+        tournament=soccer_tournament,
+        description='Round of 32',
+        datetime=datetime.now(timezone.utc) + timedelta(hours=24),
+        result='TBD',
+        match_points=2,
+        playoff=True,
+        venue='Test Stadium',
+    )
+
+
+@pytest.fixture
 def soccer_qf_match(db, team1, team2, soccer_tournament):
-    """A future TBD soccer quarter-final (playoff, hidden auto-applied, no powerups)."""
+    """A future TBD soccer quarter-final (playoff=True, hidden auto-applied, no powerups)."""
     return Match.objects.create(
         team1=team1,
         team2=team2,

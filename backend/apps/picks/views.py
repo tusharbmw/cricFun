@@ -16,8 +16,8 @@ POWERUP_BUDGET = 5
 def get_powerup_stats(user):
     """Return remaining powerup counts for a user."""
     counts = {'hidden': 0, 'fake': 0, 'no_negative': 0}
-    for s in Selection.objects.filter(user=user).select_related('match'):
-        if s.hidden and not s.match.playoff:
+    for s in Selection.objects.filter(user=user).select_related('match__tournament'):
+        if s.hidden and not s.match.is_high_stakes:
             counts['hidden'] += 1
         if s.fake:
             counts['fake'] += 1
@@ -60,12 +60,11 @@ class SelectionViewSet(viewsets.ModelViewSet):
             user=self.request.user, tournament=match.tournament
         ).exists():
             raise PermissionDenied('You are not enrolled in this tournament.')
-        hidden = match.playoff
-        serializer.save(user=self.request.user, hidden=hidden)
+        serializer.save(user=self.request.user, hidden=match.is_high_stakes)
 
     def destroy(self, request, *args, **kwargs):
         obj = self.get_object()
-        has_user_powerup = (obj.hidden and not obj.match.playoff) or obj.fake or obj.no_negative
+        has_user_powerup = (obj.hidden and not obj.match.is_high_stakes) or obj.fake or obj.no_negative
         if has_user_powerup:
             return Response(
                 {'error': "Cannot remove a pick with a powerup applied."},
@@ -120,8 +119,8 @@ class SelectionViewSet(viewsets.ModelViewSet):
         """
         selection = self.get_object()
 
-        if selection.match.playoff:
-            return Response({'error': 'Powerups are disabled during playoffs.'}, status=400)
+        if selection.match.is_high_stakes:
+            return Response({'error': 'Powerups are disabled at this stage.'}, status=400)
 
         serializer = PowerupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

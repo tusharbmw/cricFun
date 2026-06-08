@@ -82,6 +82,10 @@ class Match(models.Model):
         team2 = self.team2.name if self.team2 else '?'
         return f'{team1} vs {team2} ({self.description})'
 
+    # Soccer stages where hidden is auto-applied and all other powerups are disabled.
+    # For cricket, match.playoff covers this directly.
+    _SOCCER_HIGH_STAKES = frozenset({'Quarter-final', 'Semi-final', 'Third Place', 'Final'})
+
     @property
     def is_live(self):
         return self.result == self.Result.IN_PROGRESS
@@ -94,6 +98,19 @@ class Match(models.Model):
             self.Result.DRAW,
             self.Result.NO_RESULT,
         )
+
+    @property
+    def is_high_stakes(self) -> bool:
+        """
+        True when hidden picks are auto-applied and all other powerups are disabled.
+
+        Cricket : all playoff matches (match.playoff flag set by admin / sync).
+        Soccer  : QF and beyond only — R32 / R16 are knockout (playoff=True) but
+                  powerups are still open and hidden is not auto-applied there.
+        """
+        if self.tournament.sport == 'soccer':
+            return self.description in self._SOCCER_HIGH_STAKES
+        return self.playoff
 
 
 class Selection(models.Model):
