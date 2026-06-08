@@ -26,7 +26,8 @@ from celery import shared_task
 from django.core.cache import cache
 from django.db.models import Q
 
-from teams.models import Match, Team
+from django.db.models import Q as DQ
+from teams.models import Match, Team, Tournament
 from apps.core import cricapi
 
 logger = logging.getLogger(__name__)
@@ -198,6 +199,11 @@ def fetch_upcoming_matches():
                 },
             )
 
+            tournament, _ = Tournament.objects.get_or_create(
+                name=md['tournament'],
+                defaults={'sport': Tournament.Sport.CRICKET},
+            )
+
             Match.objects.create(
                 match_id=md['match_id'],
                 team1=team1,
@@ -206,7 +212,7 @@ def fetch_upcoming_matches():
                 venue=md['venue'],
                 result='TBD',
                 datetime=match_dt,
-                tournament=md['tournament'],
+                tournament=tournament,
                 match_points=_decide_match_weight(md['Description']),
                 playoff=_is_playoff(md['Description']),
             )
@@ -216,7 +222,207 @@ def fetch_upcoming_matches():
         except Exception as exc:
             logger.error('Error adding match %s: %s', md.get('match_id'), exc)
 
+    # Refresh state for all tournaments touched in this run
+    seen_tournaments = {
+        t for t in Match.objects.filter(result='TBD').values_list('tournament', flat=True)
+        if t is not None
+    }
+    for t_id in seen_tournaments:
+        try:
+            update_tournament_state(Tournament.objects.get(pk=t_id))
+        except Tournament.DoesNotExist:
+            pass
+
     return f'{added} new matches added; {updated_ids} match_ids updated'
+
+
+@shared_task
+def fetch_football_matches(tournament_id=None):
+    """
+    Fetch full match schedule from football-data.org and upsert into DB.
+    Costs 1 API call per tournament. Safe to run multiple times (idempotent).
+
+    Called daily by beat (no args → all active soccer tournaments) or on-demand
+    from the admin panel (tournament_id provided for a specific tournament).
+    """
+    from apps.matches.footballapi import (
+        fetch_matches, map_status, map_stage, map_points, map_playoff, map_duration,
+    )
+
+    if tournament_id is not None:
+        tournaments = list(Tournament.objects.filter(pk=tournament_id, sport=Tournament.Sport.SOCCER))
+    else:
+        tournaments = list(Tournament.objects.filter(sport=Tournament.Sport.SOCCER, is_active=True))
+
+    if not tournaments:
+        return 'no active soccer tournaments'
+
+    summary = []
+    for tournament in tournaments:
+        if not tournament.external_id:
+            summary.append(f'{tournament.name}: no external_id')
+            continue
+
+        raw = fetch_matches(tournament.external_id)
+        if not raw:
+            summary.append(f'{tournament.name}: no data returned')
+            continue
+
+        created = updated = 0
+        for m in raw:
+            try:
+                stage = m.get('stage', '')
+                group = m.get('group')
+                score = m.get('score') or {}
+                full_time = score.get('fullTime') or {}
+                status = m.get('status', '')
+                winner = score.get('winner')
+
+                home_raw = m.get('homeTeam') or {}
+                away_raw = m.get('awayTeam') or {}
+
+                # Use 'TBD' for knockout matches where opponents aren't decided yet.
+                # The match is still created so it shows in the schedule; the team
+                # record gets updated automatically on the next sync when the API
+                # provides the real name.
+                home_name = home_raw.get('name') or 'TBD'
+                away_name = away_raw.get('name') or 'TBD'
+
+                team1, _ = Team.objects.get_or_create(
+                    name=home_name,
+                    defaults={
+                        'logo_url':    home_raw.get('crest', ''),
+                        'description': home_raw.get('tla') or home_raw.get('shortName', ''),
+                    },
+                )
+                team2, _ = Team.objects.get_or_create(
+                    name=away_name,
+                    defaults={
+                        'logo_url':    away_raw.get('crest', ''),
+                        'description': away_raw.get('tla') or away_raw.get('shortName', ''),
+                    },
+                )
+
+                match_dt = datetime.strptime(
+                    m['utcDate'], '%Y-%m-%dT%H:%M:%SZ'
+                ).replace(tzinfo=timezone.utc)
+
+                fields = dict(
+                    team1=team1,
+                    team2=team2,
+                    tournament=tournament,
+                    description=map_stage(stage, group),
+                    datetime=match_dt,
+                    result=map_status(status, winner),
+                    match_points=map_points(stage),
+                    playoff=map_playoff(stage),
+                    home_score=full_time.get('home'),
+                    away_score=full_time.get('away'),
+                    duration=map_duration(score.get('duration')),
+                )
+
+                obj, was_created = Match.objects.get_or_create(
+                    match_id=str(m['id']),
+                    defaults=fields,
+                )
+                if was_created:
+                    created += 1
+                else:
+                    changed = [k for k, v in fields.items() if getattr(obj, k) != v]
+                    if changed:
+                        for k in changed:
+                            setattr(obj, k, fields[k])
+                        obj.save(update_fields=changed + ['updated_at'])
+                        updated += 1
+
+            except Exception as exc:
+                logger.error('fetch_football_matches: error on match %s: %s', m.get('id'), exc)
+
+        update_tournament_state(tournament)
+        msg = f'{tournament.name}: created {created}, updated {updated}'
+        summary.append(msg)
+        logger.info('fetch_football_matches: %s', msg)
+
+    return ' | '.join(summary)
+
+
+@shared_task
+def sync_football_scores():
+    """
+    Fetch live/recently-finished soccer matches and update scores in DB.
+    Beat fires every 60 s; task self-skips when no live or imminent matches.
+    Costs 1 API call per active tournament when it runs.
+    """
+    from datetime import timedelta as _td
+    from apps.matches.footballapi import fetch_matches, map_status, map_duration
+
+    tournaments = list(Tournament.objects.filter(sport=Tournament.Sport.SOCCER, is_active=True))
+    if not tournaments:
+        return 'no active soccer tournaments'
+
+    now = datetime.now(timezone.utc)
+    imminent_window = now + _td(hours=2)
+
+    summary = []
+    for tournament in tournaments:
+        if not tournament.external_id:
+            continue
+
+        # Skip if no live or imminent matches (avoids burning API calls needlessly)
+        has_relevant = Match.objects.filter(
+            tournament=tournament, result='IP',
+        ).exists() or Match.objects.filter(
+            tournament=tournament, result='TBD', datetime__lte=imminent_window,
+        ).exists()
+        if not has_relevant:
+            summary.append(f'{tournament.name}: no imminent matches')
+            continue
+
+        raw = fetch_matches(tournament.external_id, status='LIVE,IN_PLAY,PAUSED,FINISHED')
+        if not raw:
+            summary.append(f'{tournament.name}: no data')
+            continue
+
+        updated = 0
+        for m in raw:
+            try:
+                try:
+                    match = Match.objects.get(match_id=str(m['id']))
+                except Match.DoesNotExist:
+                    continue
+
+                score = m.get('score') or {}
+                full_time = score.get('fullTime') or {}
+                new_result   = map_status(m.get('status', ''), score.get('winner'))
+                new_home     = full_time.get('home')
+                new_away     = full_time.get('away')
+                new_duration = map_duration(score.get('duration'))
+
+                changed = []
+                for field, val in [
+                    ('result',   new_result),
+                    ('home_score', new_home),
+                    ('away_score', new_away),
+                    ('duration',  new_duration),
+                ]:
+                    if getattr(match, field) != val:
+                        setattr(match, field, val)
+                        changed.append(field)
+
+                if changed:
+                    match.save(update_fields=changed + ['updated_at'])
+                    updated += 1
+                    logger.info('sync_football_scores: match %s %s', m['id'], changed)
+
+                    if 'result' in changed and new_result in ('team1', 'team2', 'draw', 'NR'):
+                        finalize_match_results.delay(match.id)
+
+            except Exception as exc:
+                logger.error('sync_football_scores: error on match %s: %s', m.get('id'), exc)
+
+        summary.append(f'{tournament.name}: {updated} updated')
+
+    return ' | '.join(summary) if summary else 'nothing to sync'
 
 
 @shared_task
@@ -225,6 +431,52 @@ def finalize_match_results(match_id):
     from apps.picks.tasks import process_pick_results
     process_pick_results.delay(match_id)
     return f'finalize triggered for match {match_id}'
+
+
+def update_tournament_state(tournament):
+    """
+    Derive Tournament.state from the current or next match stage and save it.
+    Looks at the earliest live/upcoming match, falling back to the most recent completed one.
+    Called after each sync so the arena-chooser badge stays accurate automatically.
+    """
+    active = (
+        Match.objects
+        .filter(tournament=tournament)
+        .filter(DQ(result='IP') | DQ(result='TBD') | DQ(result='TOSS'))
+        .order_by('datetime')
+        .first()
+    )
+    ref = active or (
+        Match.objects
+        .filter(tournament=tournament, result__in=['team1', 'team2', 'draw', 'NR'])
+        .order_by('-datetime')
+        .first()
+    )
+    if not ref or not ref.description:
+        return
+
+    desc = ref.description
+    if 'Final' in desc and 'Semi' not in desc and 'Quarter' not in desc and 'Third' not in desc:
+        state = 'Final'
+    elif 'Third' in desc:
+        state = 'Third Place'
+    elif 'Semi' in desc:
+        state = 'Semi-finals'
+    elif 'Quarter' in desc:
+        state = 'Quarter-finals'
+    elif 'Round of 16' in desc or 'Last 16' in desc:
+        state = 'Round of 16'
+    elif 'Round of 32' in desc or 'Last 32' in desc:
+        state = 'Round of 32'
+    elif 'Playoff' in desc or 'playoff' in desc:
+        state = 'Playoffs'
+    else:
+        state = 'Group Stage'
+
+    if tournament.state != state:
+        tournament.state = state
+        tournament.save(update_fields=['state'])
+        logger.info('Tournament state updated: %s → %s', tournament.name, state)
 
 
 def _decide_match_weight(description: str) -> int:

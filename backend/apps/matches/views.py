@@ -5,9 +5,19 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
-from teams.models import Team, Match
+from teams.models import Team, Match, Tournament
 from apps.core.permissions import IsAdminOrReadOnly
-from .serializers import MatchSerializer, TeamSerializer
+from .serializers import MatchSerializer, TeamSerializer, TournamentSerializer
+
+
+class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
+    """Active tournaments. Frontend uses this to build the arena chooser and switcher."""
+    serializer_class = TournamentSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None  # always a small list; plain array response
+
+    def get_queryset(self):
+        return Tournament.objects.filter(is_active=True)
 
 
 class TeamViewSet(viewsets.ReadOnlyModelViewSet):
@@ -41,6 +51,9 @@ class MatchViewSet(viewsets.ModelViewSet):
         qs = self.get_queryset().filter(
             Q(result='IP') | Q(result='TOSS') | Q(result='DLD')
         )
+        tournament_id = request.query_params.get('tournament')
+        if tournament_id:
+            qs = qs.filter(tournament_id=tournament_id)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
@@ -50,6 +63,9 @@ class MatchViewSet(viewsets.ModelViewSet):
         limit  = min(int(request.query_params.get('limit', 10)), 50)
         offset = max(int(request.query_params.get('offset', 0)), 0)
         qs     = self.get_queryset().filter(result='TBD')
+        tournament_id = request.query_params.get('tournament')
+        if tournament_id:
+            qs = qs.filter(tournament_id=tournament_id)
         total  = qs.count()
         page   = qs[offset:offset + limit]
         serializer = self.get_serializer(page, many=True)
@@ -61,10 +77,13 @@ class MatchViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def completed(self, request):
-        """Completed matches (team1/team2/NR won), no pagination."""
+        """Completed matches (team1/team2/draw/NR), no pagination."""
         qs = self.get_queryset().filter(
-            Q(result='team1') | Q(result='team2') | Q(result='NR')
+            Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR')
         ).order_by('-datetime')
+        tournament_id = request.query_params.get('tournament')
+        if tournament_id:
+            qs = qs.filter(tournament_id=tournament_id)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
@@ -166,32 +185,45 @@ class MatchViewSet(viewsets.ModelViewSet):
 
         sel1_users = []
         sel2_users = []
+        sel_draw_users = []
         hidden_count = 0
         powerups = {}  # {username: 'hidden'|'fake'|'no_negative'} — only populated when locked
 
-        for s in match.selection_set.select_related('user', 'selection', 'user__userprofile').filter(user__userprofile__approved=True):
+        for s in match.selection_set.select_related(
+            'user', 'selection', 'fake_selection'
+        ).filter(user__tournament_enrollments__tournament=match.tournament):
             is_own = s.user_id == request.user.id
 
             if not is_locked and not is_own:
-                # Hidden: mask entirely — show in hidden bucket
+                # Hidden: mask entirely
                 if s.hidden:
                     hidden_count += 1
                     continue
-                # Googly/Fake: show opposite team as decoy
+                # Fake: show the decoy the user chose
                 if s.fake:
-                    if s.selection == match.team1:
-                        sel2_users.append(s.user.username)
-                    elif s.selection == match.team2:
-                        sel1_users.append(s.user.username)
+                    if s.fake_draw:
+                        sel_draw_users.append(s.user.username)
+                    elif s.fake_selection:
+                        if s.fake_selection == match.team1:
+                            sel1_users.append(s.user.username)
+                        elif s.fake_selection == match.team2:
+                            sel2_users.append(s.user.username)
+                    else:
+                        # Cricket fallback: show opposite team
+                        if s.selection == match.team1:
+                            sel2_users.append(s.user.username)
+                        elif s.selection == match.team2:
+                            sel1_users.append(s.user.username)
                     continue
 
-            # Own pick, or match locked: always show real pick
-            if s.selection == match.team1:
+            # Own pick, or match locked: show real pick
+            if s.draw:
+                sel_draw_users.append(s.user.username)
+            elif s.selection == match.team1:
                 sel1_users.append(s.user.username)
             elif s.selection == match.team2:
                 sel2_users.append(s.user.username)
 
-            # Record which powerplay (if any) was used — only revealed once locked
             if is_locked:
                 if s.hidden:
                     powerups[s.user.username] = 'hidden'
@@ -200,22 +232,23 @@ class MatchViewSet(viewsets.ModelViewSet):
                 elif s.no_negative:
                     powerups[s.user.username] = 'no_negative'
 
-        # For completed playoff matches, compute non-pickers and assign them to
-        # the losing side — mirroring the scoring logic in calculate_scores().
+        # For completed playoff matches, assign non-pickers to the losing side
         team1_auto = []
         team2_auto = []
         if match.playoff and match.result in ('team1', 'team2'):
             from django.contrib.auth.models import User as _User
             all_usernames = set(
-                _User.objects.filter(is_active=True, userprofile__approved=True)
-                .values_list('username', flat=True)
+                _User.objects.filter(
+                    is_active=True,
+                    tournament_enrollments__tournament=match.tournament,
+                ).values_list('username', flat=True)
             )
             picked_usernames = set(sel1_users) | set(sel2_users)
             non_pickers = sorted(all_usernames - picked_usernames)
             if match.result == 'team1':
-                team2_auto = non_pickers   # team1 won → losers are team2 side
+                team2_auto = non_pickers
             else:
-                team1_auto = non_pickers   # team2 won → losers are team1 side
+                team1_auto = non_pickers
 
         return Response({
             'match_id': match.id,
@@ -225,6 +258,8 @@ class MatchViewSet(viewsets.ModelViewSet):
             'team1_count': len(sel1_users) + len(team1_auto),
             'team2_selections': sel2_users,
             'team2_count': len(sel2_users) + len(team2_auto),
+            'draw_selections': sel_draw_users,
+            'draw_count': len(sel_draw_users),
             'team1_auto': team1_auto,
             'team2_auto': team2_auto,
             'hidden_count': hidden_count,

@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown, MoveHorizontal } from 'lucide-react'
 import { leaderboardAPI } from '@/api/leaderboard'
 import useAuthStore from '@/store/authStore'
 import Spinner from '@/components/ui/Spinner'
+import useTournamentStore from '@/store/tournamentStore'
 
 // ---------------------------------------------------------------------------
 // Shared empty state
@@ -236,29 +237,45 @@ function PointsProgressionChart({ history, currentUsername, displayNames }) {
 
 export default function Leaderboard() {
   const { user } = useAuthStore()
+  const { currentTournament } = useTournamentStore()
+  const tid = currentTournament?.id
 
   const { data: board, isLoading } = useQuery({
-    queryKey: ['leaderboard'],
-    queryFn: () => leaderboardAPI.global().then(r => r.data),
+    queryKey: ['leaderboard', tid],
+    queryFn: () => leaderboardAPI.global(tid).then(r => r.data),
     staleTime: 60000,
+    enabled: !!tid,
   })
 
   const { data: history, isLoading: historyLoading } = useQuery({
-    queryKey: ['leaderboard', 'history'],
-    queryFn: () => leaderboardAPI.history().then(r => r.data),
+    queryKey: ['leaderboard', 'history', tid],
+    queryFn: () => leaderboardAPI.history(tid).then(r => r.data),
     staleTime: 5 * 60 * 1000,
+    enabled: !!tid,
   })
 
   if (isLoading) return <Spinner />
 
   return (
     <div className="space-y-4">
-      <div className="flex items-baseline justify-between gap-2 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-800">Standings</h1>
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">
+            {board?.tournament_name ?? currentTournament?.name ?? 'Standings'}
+            {board?.tournament_season && (
+              <span className="ml-2 text-sm font-normal text-gray-400">{board.tournament_season}</span>
+            )}
+          </h1>
+          {board?.player_count > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              {board.player_count} players · separate from other arenas
+            </p>
+          )}
+        </div>
         {board && (
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-400 shrink-0">
             <span className="font-medium text-gray-600">{board.matches_completed}</span> of{' '}
-            <span className="font-medium text-gray-600">{board.matches_total}</span> matches completed
+            <span className="font-medium text-gray-600">{board.matches_total}</span> completed
           </span>
         )}
       </div>

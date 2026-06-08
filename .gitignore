@@ -61,6 +61,7 @@ projectplan.md
 CRICFUN_HOMEPAGE_IMPLEMENTATION_PROMPT.md
 
 
+
 # Node.js / Frontend
 node_modules/
 frontend/dist/
@@ -91,7 +92,8 @@ coverage.xml
 
 # Misc
 cricfun-design-mockups.html
+TushFun.html
+prototype/
 
 #docs
-docs/DEPLOYMENT.md
-docs/UAT.md
+docs/

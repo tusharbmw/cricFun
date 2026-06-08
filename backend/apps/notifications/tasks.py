@@ -26,28 +26,33 @@ def notify_pick_result(selection_id, match_id):
     from apps.notifications.utils import send_push_notification
 
     try:
-        sel   = Selection.objects.select_related('user', 'match', 'selection').get(pk=selection_id)
+        sel = Selection.objects.select_related(
+            'user', 'match__team1', 'match__team2', 'match__tournament', 'selection',
+        ).get(pk=selection_id)
         match = sel.match
     except Selection.DoesNotExist:
         logger.error('notify_pick_result: selection %s not found', selection_id)
         return
 
-    if match.result == 'team1':
-        winner = match.team1
-    elif match.result == 'team2':
-        winner = match.team2
-    else:
-        winner = None
+    t1 = match.team1.name if match.team1 else '?'
+    t2 = match.team2.name if match.team2 else '?'
+    tournament_suffix = f' ({match.tournament.name})' if match.tournament else ''
 
-    if winner:
-        if sel.selection == winner:
-            message = f'✅ Correct pick! {winner.name} won.'
+    if match.result in ('team1', 'team2'):
+        winner = match.team1 if match.result == 'team1' else match.team2
+        if sel.draw:
+            message = f'❌ Wrong pick — {winner.name} won, you picked Draw.{tournament_suffix}'
+        elif sel.selection == winner:
+            message = f'✅ Correct pick! {winner.name} won.{tournament_suffix}'
         else:
-            message = f'❌ Wrong pick. {winner.name} won.'
+            message = f'❌ Wrong pick. {winner.name} won.{tournament_suffix}'
+    elif match.result == 'draw':
+        if sel.draw:
+            message = f'⚖ Draw — you got it right! {t1} vs {t2} drew.{tournament_suffix}'
+        else:
+            message = f'⚖ Draw — {t1} vs {t2} drew. Your team pick missed.{tournament_suffix}'
     else:
-        t1 = match.team1.name if match.team1 else '?'
-        t2 = match.team2.name if match.team2 else '?'
-        message = f'🌧️ No result — {t1} vs {t2}. No points affected.'
+        message = f'🌧️ No result — {t1} vs {t2}. No points affected.{tournament_suffix}'
 
     Notification.objects.create(
         user=sel.user,
@@ -56,9 +61,8 @@ def notify_pick_result(selection_id, match_id):
         meta={'match_id': match_id, 'selection_id': selection_id},
     )
 
-    # Web Push
     for sub in PushSubscription.objects.filter(user=sel.user):
-        send_push_notification(sub, title='CricFun', body=message, url='/results', tag=f'pick-result-{match_id}')
+        send_push_notification(sub, title='TushFun', body=message, url='/results', tag=f'pick-result-{match_id}')
 
     logger.info('notify_pick_result: notified user %s for selection %s', sel.user_id, selection_id)
 
@@ -75,13 +79,20 @@ def notify_rank_change(new_leader, match_id, prev_leader=None):
         return
 
     from django.contrib.auth.models import User
+    from teams.models import Match
     from apps.notifications.models import Notification, PushSubscription
     from apps.notifications.utils import send_push_notification
 
+    try:
+        tournament = Match.objects.select_related('tournament').get(pk=match_id).tournament
+        tournament_suffix = f' ({tournament.name})' if tournament else ''
+    except Match.DoesNotExist:
+        tournament_suffix = ''
+
     if prev_leader:
-        message = f'🏆 {new_leader} has taken the lead!'
+        message = f'🏆 {new_leader} has taken the lead!{tournament_suffix}'
     else:
-        message = f'🏆 {new_leader} is leading the standings!'
+        message = f'🏆 {new_leader} is leading the standings!{tournament_suffix}'
 
     meta  = {'new_leader': new_leader, 'prev_leader': prev_leader, 'match_id': match_id}
     users = list(User.objects.filter(is_active=True))
@@ -91,11 +102,10 @@ def notify_rank_change(new_leader, match_id, prev_leader=None):
         for u in users
     ])
 
-    # Web Push — one per subscription (users may have multiple devices)
     subs = PushSubscription.objects.filter(user__is_active=True).select_related('user')
     sent = 0
     for sub in subs:
-        if send_push_notification(sub, title='CricFun', body=message, url='/standings', tag='rank-change'):
+        if send_push_notification(sub, title='TushFun', body=message, url='/standings', tag='rank-change'):
             sent += 1
 
     logger.info(
@@ -243,8 +253,15 @@ def notify_personal_rank_changes(changes, match_id):
         return
 
     from django.contrib.auth.models import User
+    from teams.models import Match
     from apps.notifications.models import Notification, PushSubscription
     from apps.notifications.utils import send_push_notification
+
+    try:
+        tournament = Match.objects.select_related('tournament').get(pk=match_id).tournament
+        tournament_suffix = f' ({tournament.name})' if tournament else ''
+    except Match.DoesNotExist:
+        tournament_suffix = ''
 
     sent = 0
     for change in changes:
@@ -254,9 +271,9 @@ def notify_personal_rank_changes(changes, match_id):
             continue
 
         if change['moved_up']:
-            message = f"📈 You moved up to rank #{change['new_rank']} (was #{change['old_rank']})"
+            message = f"📈 You moved up to rank #{change['new_rank']} (was #{change['old_rank']}){tournament_suffix}"
         else:
-            message = f"📉 You dropped to rank #{change['new_rank']} (was #{change['old_rank']})"
+            message = f"📉 You dropped to rank #{change['new_rank']} (was #{change['old_rank']}){tournament_suffix}"
 
         Notification.objects.create(
             user=user,
@@ -266,7 +283,7 @@ def notify_personal_rank_changes(changes, match_id):
         )
         for sub in PushSubscription.objects.filter(user=user):
             if send_push_notification(
-                sub, title='CricFun', body=message,
+                sub, title='TushFun', body=message,
                 url='/standings', tag=f'my-rank-{match_id}',
             ):
                 sent += 1
@@ -292,7 +309,20 @@ def notify_tournament_over(match_id, top3_text):
     from apps.notifications.models import Notification, PushSubscription
     from apps.notifications.utils import send_push_notification
 
-    users = list(User.objects.filter(is_active=True, userprofile__approved=True))
+    from teams.models import Match
+    from apps.users.models import TournamentEnrollment
+    try:
+        match = Match.objects.select_related('tournament').get(pk=match_id)
+        tournament = match.tournament
+        enrolled_user_ids = TournamentEnrollment.objects.filter(
+            tournament=tournament
+        ).values_list('user_id', flat=True)
+        users = list(User.objects.filter(is_active=True, id__in=enrolled_user_ids))
+        push_title = f'🏆 {tournament.name}' if tournament else '🏆 Tournament Over'
+    except Match.DoesNotExist:
+        users = []
+        push_title = '🏆 Tournament Over'
+
     Notification.objects.bulk_create([
         Notification(
             user=u, type='rank_change', message=top3_text,
@@ -302,12 +332,12 @@ def notify_tournament_over(match_id, top3_text):
     ])
 
     subs = (PushSubscription.objects
-            .filter(user__is_active=True, user__userprofile__approved=True)
+            .filter(user__is_active=True, user__id__in=[u.id for u in users])
             .select_related('user'))
     sent = 0
     for sub in subs:
         if send_push_notification(
-            sub, title='🏆 Tournament Over', body=top3_text,
+            sub, title=push_title, body=top3_text,
             url='/standings', tag='tournament-over',
         ):
             sent += 1

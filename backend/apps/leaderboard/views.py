@@ -7,7 +7,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from teams.models import Match, Selection
+from apps.users.models import TournamentEnrollment
+from teams.models import Match, Selection, Tournament
 
 logger = logging.getLogger(__name__)
 
@@ -22,20 +23,33 @@ CACHE_TTL = 86400  # 24 hours
 # Core scoring logic
 # ---------------------------------------------------------------------------
 
-def calculate_scores(upto_match_id=None):
+def calculate_scores(upto_match_id=None, tournament=None):
     """
-    Compute scores for all active users.
+    Compute scores for users enrolled in a tournament.
 
     Args:
         upto_match_id: If given, only count matches with datetime <= that match's
                        datetime. Used by backfill to reconstruct historical states.
                        Default None = use all completed matches.
+        tournament: Tournament instance to scope users and matches. When None,
+                    includes all users with any enrollment and all completed matches.
 
     Returns dict: {username: {user_id, username, won, lost, skipped,
                                matches_won, matches_lost}}
     """
     scores = {}
-    for u in User.objects.filter(is_active=True, userprofile__approved=True):
+    if tournament is not None:
+        enrolled = User.objects.filter(
+            is_active=True,
+            tournament_enrollments__tournament=tournament,
+        )
+    else:
+        enrolled = User.objects.filter(
+            is_active=True,
+            tournament_enrollments__isnull=False,
+        ).distinct()
+
+    for u in enrolled:
         scores[u.username] = {
             'user_id':       u.id,
             'username':      u.username,
@@ -49,8 +63,11 @@ def calculate_scores(upto_match_id=None):
         }
 
     matches_qs = Match.objects.filter(
-        Q(result='team1') | Q(result='team2')
-    ).prefetch_related('selection_set__user', 'selection_set__selection')
+        Q(result='team1') | Q(result='team2') | Q(result='draw')
+    ).select_related('tournament').prefetch_related('selection_set__user', 'selection_set__selection')
+
+    if tournament is not None:
+        matches_qs = matches_qs.filter(tournament=tournament)
 
     if upto_match_id is not None:
         try:
@@ -60,56 +77,71 @@ def calculate_scores(upto_match_id=None):
             pass  # fall through — compute full scores
 
     for mr in matches_qs:
-        sel1    = []
-        sel2    = []
-        no_neg  = []
+        is_soccer = mr.tournament.sport == 'soccer'
+
+        sel1     = []   # picked team1
+        sel2     = []   # picked team2
+        sel_draw = []   # picked draw (soccer group stage only)
+        no_neg   = []
 
         for s in mr.selection_set.all():
-            if s.selection == mr.team1:
+            if s.draw:
+                sel_draw.append(s.user.username)
+            elif s.selection == mr.team1:
                 sel1.append(s.user.username)
             elif s.selection == mr.team2:
                 sel2.append(s.user.username)
             if s.no_negative:
                 no_neg.append(s.user.username)
-            if (s.hidden and not mr.playoff) or s.fake or s.no_negative:
+            if (s.hidden and not mr.is_high_stakes) or s.fake or s.no_negative:
                 if s.user.username in scores:
                     scores[s.user.username]['powerups_used'] += 1
 
-        pickers = set(sel1 + sel2)
+        pickers = set(sel1 + sel2 + sel_draw)
         non_pickers = [u for u in scores if u not in pickers]
 
-        if mr.playoff:
-            # Playoff: non-pickers are assigned to the losing side as a penalty.
-            # They don't count toward the skip limit but lose points as if they
-            # had picked the loser. Winners also gain from the larger losing pool.
-            if mr.result == 'team1':
-                sel2 = sel2 + non_pickers  # team2 lost
+        # Compute BP (base points for this match)
+        if is_soccer:
+            if mr.home_score is None or mr.away_score is None:
+                continue  # score data not available yet
+            if mr.result == 'draw':
+                bp = mr.match_points * (mr.home_score + mr.away_score + 1)
             else:
-                sel1 = sel1 + non_pickers  # team1 lost
+                goal_diff = abs(mr.home_score - mr.away_score)
+                # min 1 so shootout (0 goal diff in regular play) still awards points
+                bp = mr.match_points * max(1, min(goal_diff, 3))
         else:
-            for username in non_pickers:
-                scores[username]['skipped'] += 1
+            bp = mr.match_points
 
+        if mr.is_high_stakes:
+            # QF+ (soccer) / all playoffs (cricket): non-pickers take the losing side penalty
+            if mr.result == 'team1':
+                sel2 = sel2 + non_pickers
+            elif mr.result == 'team2':
+                sel1 = sel1 + non_pickers
+        else:
+            # Group stage + R32/R16 (soccer): skipping costs a skip slot
+            for username in non_pickers:
+                if username in scores:
+                    scores[username]['skipped'] += 1
+
+        # Determine correct vs wrong pickers
         if mr.result == 'team1':
-            for u in sel1:
-                if u in scores:
-                    scores[u]['won']         += len(sel2) * mr.match_points
-                    scores[u]['matches_won'] += 1
-            for u in sel2:
-                if u in scores:
-                    if u not in no_neg:
-                        scores[u]['lost']         += len(sel1) * mr.match_points
-                    scores[u]['matches_lost'] += 1
-        else:  # team2 won
-            for u in sel2:
-                if u in scores:
-                    scores[u]['won']         += len(sel1) * mr.match_points
-                    scores[u]['matches_won'] += 1
-            for u in sel1:
-                if u in scores:
-                    if u not in no_neg:
-                        scores[u]['lost']         += len(sel2) * mr.match_points
-                    scores[u]['matches_lost'] += 1
+            correct, wrong = sel1, sel2 + sel_draw
+        elif mr.result == 'team2':
+            correct, wrong = sel2, sel1 + sel_draw
+        else:  # draw
+            correct, wrong = sel_draw, sel1 + sel2
+
+        for u in correct:
+            if u in scores:
+                scores[u]['won']         += len(wrong) * bp
+                scores[u]['matches_won'] += 1
+        for u in wrong:
+            if u in scores:
+                if u not in no_neg:
+                    scores[u]['lost']         += len(correct) * bp
+                scores[u]['matches_lost'] += 1
 
     for username, data in scores.items():
         total = data['won'] - data['lost']
@@ -316,7 +348,8 @@ def take_snapshot(match_id):
             names = by_rank[rank]
             name_str = ' & '.join(names) + (' (tied)' if len(names) > 1 else '')
             parts.append(f"{medals[rank]} {name_str}")
-        top3_text = '🏆 Tournament over! Thanks for playing. ' + '  '.join(parts)
+        tournament_name = match.tournament.name if match.tournament else 'Tournament'
+        top3_text = f'🏆 {tournament_name} is over! Thanks for playing.  ' + '  '.join(parts)
         from apps.notifications.tasks import notify_tournament_over
         notify_tournament_over.apply_async(args=[match_id, top3_text], countdown=30)
         logger.info('take_snapshot: tournament-over notification queued for match %s', match_id)
@@ -360,7 +393,7 @@ def compute_streaks():
     ):
         picks[(s['match_id'], s['user__username'])] = s['selection_id']
 
-    usernames = list(User.objects.filter(is_active=True, userprofile__approved=True).values_list('username', flat=True))
+    usernames = list(User.objects.filter(is_active=True, tournament_enrollments__isnull=False).distinct().values_list('username', flat=True))
 
     streaks = {}
     for username in usernames:
@@ -437,32 +470,120 @@ def _abbreviate(team_name: str) -> str:
     return ''.join(w[0] for w in words).upper()
 
 
+_STAGE_ABBREV = {
+    'Round of 32': 'R32',
+    'Round of 16': 'R16',
+    'Quarter-final': 'QF',
+    'Semi-final': 'SF',
+    'Third Place': '3rd',
+    'Final': 'F',
+}
+
+
+def _abbreviate_stage(description: str) -> str:
+    """'Group A' → 'GA' · 'Quarter-final' → 'QF' · 'Super 8' → 'S8'"""
+    if description in _STAGE_ABBREV:
+        return _STAGE_ABBREV[description]
+    # "Group A" → "GA", "Group Stage" → "GS", "Super 8" → "S8"
+    words = description.split()
+    if len(words) == 1:
+        return description[:2].upper()
+    return ''.join(w[0] for w in words).upper()
+
+
+def _attach_rank_changes_scoped(ranked, tournament):
+    """Tournament-scoped version of _attach_rank_changes."""
+    from apps.leaderboard.models import LeaderboardSnapshot
+    try:
+        snaps = list(
+            LeaderboardSnapshot.objects
+            .filter(match__tournament=tournament)
+            .order_by('-match__datetime')[:2]
+        )
+        prev = snaps[1] if len(snaps) >= 2 else snaps[0]
+        prev_ranks = {r['username']: r['rank'] for r in (prev.rankings or [])}
+    except (IndexError, Exception):
+        prev_ranks = {}
+
+    for entry in ranked:
+        prev_rank = prev_ranks.get(entry['username'])
+        entry['prev_rank'] = prev_rank
+        if prev_rank is None:
+            entry['rank_change'] = 'new'
+        elif entry['rank'] < prev_rank:
+            entry['rank_change'] = 'up'
+        elif entry['rank'] > prev_rank:
+            entry['rank_change'] = 'down'
+        else:
+            entry['rank_change'] = 'same'
+    return ranked
+
+
 # ---------------------------------------------------------------------------
 # API views
 # ---------------------------------------------------------------------------
 
 class LeaderboardView(APIView):
-    """GET /api/v1/leaderboard/  → global leaderboard sorted by total score."""
+    """GET /api/v1/leaderboard/?tournament=<id>  → tournament-scoped leaderboard."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        completed = Match.objects.filter(
-            Q(result='team1') | Q(result='team2') | Q(result='NR')
-        ).count()
-        total = Match.objects.exclude(result='CANC').count()
+        tournament_id = request.query_params.get('tournament')
+        tournament = None
+        if tournament_id:
+            try:
+                tournament = Tournament.objects.get(pk=tournament_id)
+            except Tournament.DoesNotExist:
+                pass
+
+        if tournament:
+            scores = calculate_scores(tournament=tournament)
+            ranked = _build_ranked_list(scores)
+            streaks = compute_streaks()
+            for entry in ranked:
+                entry['streak'] = streaks.get(entry['username'], [])
+            _attach_rank_changes_scoped(ranked, tournament)
+            completed = Match.objects.filter(
+                Q(result='team1') | Q(result='team2') | Q(result='NR'),
+                tournament=tournament,
+            ).count()
+            total = Match.objects.exclude(result='CANC').filter(tournament=tournament).count()
+        else:
+            ranked = get_cached_leaderboard()
+            completed = Match.objects.filter(
+                Q(result='team1') | Q(result='team2') | Q(result='NR')
+            ).count()
+            total = Match.objects.exclude(result='CANC').count()
+
         return Response({
-            'entries': get_cached_leaderboard(),
+            'entries': ranked,
             'matches_completed': completed,
             'matches_total': total,
+            'player_count': len(ranked),
+            'tournament_name': tournament.name if tournament else None,
+            'tournament_season': tournament.season if tournament else None,
         })
 
 
 class MyRankView(APIView):
-    """GET /api/v1/leaderboard/me/  → current user's rank and stats."""
+    """GET /api/v1/leaderboard/me/?tournament=<id>  → current user's rank and stats."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        ranked = get_cached_leaderboard()
+        tournament_id = request.query_params.get('tournament')
+        tournament = None
+        if tournament_id:
+            try:
+                tournament = Tournament.objects.get(pk=tournament_id)
+            except Tournament.DoesNotExist:
+                pass
+
+        if tournament:
+            scores = calculate_scores(tournament=tournament)
+            ranked = _build_ranked_list(scores)
+        else:
+            ranked = get_cached_leaderboard()
+
         for entry in ranked:
             if entry['username'] == request.user.username:
                 return Response(entry)
@@ -479,21 +600,38 @@ class LeaderboardHistoryView(APIView):
     def get(self, request):
         from apps.leaderboard.models import LeaderboardSnapshot
 
-        snapshots = (
+        tournament_id = request.query_params.get('tournament')
+        tournament = None
+        if tournament_id:
+            try:
+                tournament = Tournament.objects.get(pk=tournament_id)
+            except Tournament.DoesNotExist:
+                pass
+
+        snapshots_qs = (
             LeaderboardSnapshot.objects
-            .select_related('match__team1', 'match__team2')
+            .select_related('match__team1', 'match__team2', 'match__tournament')
             .order_by('match__datetime')
         )
+        if tournament:
+            snapshots_qs = snapshots_qs.filter(match__tournament=tournament)
+
+        is_soccer = tournament and tournament.sport == Tournament.Sport.SOCCER
 
         result = []
-        for i, snap in enumerate(snapshots, 1):
+        for i, snap in enumerate(snapshots_qs, 1):
             m  = snap.match
             t1 = m.team1.name if m.team1 else '?'
             t2 = m.team2.name if m.team2 else '?'
+            if is_soccer:
+                stage = _abbreviate_stage(m.description or f'M{i}')
+                label = f'{stage}: {_abbreviate(t1)} v {_abbreviate(t2)}'
+            else:
+                label = f'M{i}: {_abbreviate(t1)} vs {_abbreviate(t2)}'
             result.append({
                 'match_id':     m.id,
                 'match_number': i,
-                'label':        f'M{i}: {_abbreviate(t1)} vs {_abbreviate(t2)}',
+                'label':        label,
                 'full_label':   f'{m.description or "Match"}: {t1} vs {t2}',
                 'taken_at':     snap.taken_at.isoformat(),
                 'rankings':     snap.rankings,

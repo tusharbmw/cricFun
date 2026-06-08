@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from rest_framework import serializers
-from teams.models import Selection, Match, Team
+from teams.models import Selection, Match, Team, Tournament
 
 
 class SelectionSerializer(serializers.ModelSerializer):
@@ -12,6 +12,7 @@ class SelectionSerializer(serializers.ModelSerializer):
     selected_team_name = serializers.CharField(source='selection.name', read_only=True)
     team1_name = serializers.CharField(source='match.team1.name', read_only=True)
     team2_name = serializers.CharField(source='match.team2.name', read_only=True)
+    fake_selection_name = serializers.CharField(source='fake_selection.name', read_only=True)
 
     class Meta:
         model = Selection
@@ -19,7 +20,8 @@ class SelectionSerializer(serializers.ModelSerializer):
             'id', 'match', 'match_name', 'match_description', 'match_datetime',
             'match_result', 'match_result_display',
             'selection', 'selected_team_name', 'team1_name', 'team2_name',
-            'hidden', 'fake', 'no_negative',
+            'draw', 'hidden', 'fake', 'no_negative',
+            'fake_selection', 'fake_selection_name', 'fake_draw',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['user', 'created_at', 'updated_at']
@@ -57,14 +59,24 @@ class SelectionSerializer(serializers.ModelSerializer):
             if request and Selection.objects.filter(user=request.user, match=match).exists():
                 raise serializers.ValidationError("You already have a pick on this match.")
 
+        # Draw pick validation
+        draw = data.get('draw', getattr(self.instance, 'draw', False))
+        if draw and match:
+            if match.tournament.sport == Tournament.Sport.CRICKET:
+                raise serializers.ValidationError({'draw': 'Draw picks are not allowed in cricket.'})
+            if match.playoff:
+                raise serializers.ValidationError({'draw': 'Draw picks are not allowed in knockout rounds.'})
+
         return data
 
 
 class PowerupSerializer(serializers.Serializer):
     powerup_type = serializers.ChoiceField(choices=['hidden', 'fake', 'no_negative'])
-
-    def validate_powerup_type(self, value):
-        return value
+    # Soccer fake powerup: user specifies what rivals will see as the decoy
+    fake_selection_id = serializers.PrimaryKeyRelatedField(
+        queryset=Team.objects.all(), required=False, allow_null=True,
+    )
+    fake_draw = serializers.BooleanField(required=False, default=False)
 
 
 class PowerupStatsSerializer(serializers.Serializer):

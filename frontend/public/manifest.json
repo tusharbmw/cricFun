@@ -1,7 +1,7 @@
 {
-  "name": "CricFun",
-  "short_name": "CricFun",
-  "description": "IPL prediction game — pick the winner before each match",
+  "name": "TushFun",
+  "short_name": "TushFun",
+  "description": "Multi-sport prediction game — pick the winner before each match",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8f9fa",

@@ -7,11 +7,26 @@ import { picksAPI } from '@/api/picks'
 import useAuthStore from '@/store/authStore'
 import Spinner from '@/components/ui/Spinner'
 import PickDistribution from '@/components/home/PickDistribution'
+import useTournamentStore from '@/store/tournamentStore'
 
 const POWERUP_META = {
-  hidden:      { emoji: '🕵️', label: 'Hidden',   suffix: 'from others' },
-  fake:        { emoji: '🃏', label: 'Googly',   suffix: 'for others' },
-  no_negative: { emoji: '🛡️', label: 'The Wall', suffix: 'applied' },
+  cricket: {
+    hidden:      { emoji: '🕵️', label: 'Hidden',      suffix: 'from others' },
+    fake:        { emoji: '🃏', label: 'Googly',      suffix: 'for others' },
+    no_negative: { emoji: '🛡️', label: 'The Wall',   suffix: 'applied' },
+  },
+  soccer: {
+    hidden:      { emoji: '🕵️', label: 'Hidden',      suffix: 'from others' },
+    fake:        { emoji: '🪄', label: 'Dummy',        suffix: 'for others' },
+    no_negative: { emoji: '🧤', label: 'Clean Sheet', suffix: 'applied' },
+  },
+}
+
+function soccerBP(match) {
+  if (match.home_score === null || match.away_score === null) return match.match_points
+  if (match.result === 'draw') return match.match_points * (match.home_score + match.away_score + 1)
+  const diff = Math.abs(match.home_score - match.away_score)
+  return match.match_points * Math.max(1, Math.min(diff, 3))
 }
 
 function TeamLogo({ team, bgColor }) {
@@ -29,6 +44,7 @@ function TeamLogo({ team, bgColor }) {
 function ResultStateBadge({ result, myPick, won, playoffAutoLoss }) {
   if (result === 'CANC') return <span className="text-xs font-medium px-2.5 py-1 rounded-xl bg-gray-100 text-gray-500">CANCELLED</span>
   if (result === 'NR') return <span className="text-xs font-medium px-2.5 py-1 rounded-xl bg-gray-100 text-gray-500">NO RESULT</span>
+  if (result === 'draw' && !myPick) return <span className="text-xs font-medium px-2.5 py-1 rounded-xl" style={{ background: '#FBF5E6', color: '#7A5A1A' }}>⚖ DRAW</span>
   if (playoffAutoLoss) return <span className="text-xs font-bold px-2.5 py-1 rounded-xl" style={{ background: '#FCEBEB', color: '#791F1F' }}>💀 AUTO-LOST</span>
   if (!myPick) return <span className="text-xs font-medium px-2.5 py-1 rounded-xl bg-gray-100 text-gray-500">SKIPPED</span>
   if (won) return <span className="text-xs font-bold px-2.5 py-1 rounded-xl" style={{ background: '#EAF3DE', color: '#27500A' }}>✓ WON</span>
@@ -38,10 +54,13 @@ function ResultStateBadge({ result, myPick, won, playoffAutoLoss }) {
 export default function Results() {
   const [searchParams] = useSearchParams()
   const scrollToMatchId = searchParams.get('match')
+  const { currentTournament } = useTournamentStore()
+  const tid = currentTournament?.id
 
   const { data: completed, isLoading } = useQuery({
-    queryKey: ['matches', 'completed'],
-    queryFn: () => matchesAPI.completed().then(r => r.data),
+    queryKey: ['matches', 'completed', tid],
+    queryFn: () => matchesAPI.completed({ tournament: tid }).then(r => r.data),
+    enabled: !!tid,
   })
 
   const { data: historyData } = useQuery({
@@ -78,16 +97,24 @@ export default function Results() {
 function ResultCard({ match, myPick, highlighted }) {
   const { user } = useAuthStore()
   const dt = new Date(match.datetime)
+  const isSoccer = match.tournament?.sport === 'soccer'
+  const sport = isSoccer ? 'soccer' : 'cricket'
+  const PM = POWERUP_META[sport]
+  const bp = isSoccer ? soccerBP(match) : match.match_points
+
+  const isDrawResult = match.result === 'draw'
+  const myPickDraw = myPick?.draw === true
   const winner = match.result === 'team1' ? match.team1?.name : match.result === 'team2' ? match.team2?.name : null
-  const won = !!(myPick && winner && myPick.selected_team_name === winner)
-  const lost = !!(myPick && winner && myPick.selected_team_name !== winner)
+  const won = isDrawResult ? myPickDraw : !!(myPick && winner && (myPickDraw ? false : myPick.selected_team_name === winner))
+  const lost = !!(myPick && !won && match.result !== 'NR' && !isDrawResult) ||
+               !!(myPick && isDrawResult && !myPickDraw)
 
   const t1Won = match.result === 'team1'
   const t2Won = match.result === 'team2'
-  const t1MyPick = !!(myPick && myPick.selected_team_name === match.team1?.name)
-  const t2MyPick = !!(myPick && myPick.selected_team_name === match.team2?.name)
-  const t1Lost = t1MyPick && lost
-  const t2Lost = t2MyPick && lost
+  const t1MyPick = !!(myPick && !myPickDraw && myPick.selected_team_name === match.team1?.name)
+  const t2MyPick = !!(myPick && !myPickDraw && myPick.selected_team_name === match.team2?.name)
+  const t1Lost = t1MyPick && (isDrawResult || (t2Won && match.result !== 'NR'))
+  const t2Lost = t2MyPick && (isDrawResult || (t1Won && match.result !== 'NR'))
   const t1WinnerNotPicked = t1Won && !t1MyPick
   const t2WinnerNotPicked = t2Won && !t2MyPick
 
@@ -105,19 +132,25 @@ function ResultCard({ match, myPick, highlighted }) {
   let pointsDisplay = null
   if (isPlayoffAutoLoss) {
     const winnerCount = t1Won ? sel.team1_count : sel.team2_count
-    pointsDisplay = { text: `-${winnerCount * match.match_points} pts`, positive: false, count: winnerCount, autoLoss: true }
+    pointsDisplay = { text: `-${winnerCount * bp} pts`, positive: false, count: winnerCount, bp, autoLoss: true }
   } else if (isSkipped) {
     pointsDisplay = { text: '0 pts', skipped: true }
-  } else if (myPick && winner && sel) {
+  } else if (myPick && (winner || isDrawResult) && sel) {
     if (won) {
-      const loserCount = t1MyPick ? sel.team2_count : sel.team1_count
-      pointsDisplay = { text: `+${loserCount * match.match_points} pts`, positive: true, count: loserCount }
+      const wrongCount = isDrawResult
+        ? (sel.team1_count ?? 0) + (sel.team2_count ?? 0)
+        : t1MyPick
+          ? (sel.team2_count ?? 0) + (sel.draw_count ?? 0)
+          : (sel.team1_count ?? 0) + (sel.draw_count ?? 0)
+      pointsDisplay = { text: `+${wrongCount * bp} pts`, positive: true, count: wrongCount, bp }
     } else if (lost) {
-      const winnerCount = t1Won ? sel.team1_count : sel.team2_count
+      const correctCount = isDrawResult
+        ? (sel.draw_count ?? 0)
+        : t1Won ? (sel.team1_count ?? 0) : (sel.team2_count ?? 0)
       if (powerup === 'no_negative') {
         pointsDisplay = { text: '0 pts', positive: true, wall: true }
       } else {
-        pointsDisplay = { text: `-${winnerCount * match.match_points} pts`, positive: false, count: winnerCount }
+        pointsDisplay = { text: `-${correctCount * bp} pts`, positive: false, count: correctCount, bp }
       }
     }
   }
@@ -199,16 +232,24 @@ function ResultCard({ match, myPick, highlighted }) {
           <div className="text-xs text-gray-500">{format(dt, 'EEE d MMM · h:mm a')} · {match.venue}</div>
           {match.status_text ? (
             <div className="text-xs font-medium mt-1 text-gray-600">{match.status_text}</div>
+          ) : isDrawResult ? (
+            <div className="text-xs font-medium mt-1 text-gray-600">
+              ⚖ Draw{isSoccer && match.home_score !== null ? ` — ${match.home_score}–${match.away_score}` : ''}
+              {match.duration === 'PENALTY_SHOOTOUT' ? ' (Penalties)' : match.duration === 'EXTRA_TIME' ? ' (AET)' : ''}
+            </div>
           ) : winner ? (
-            <div className="text-xs font-medium mt-1 text-gray-600">{winner} won</div>
+            <div className="text-xs font-medium mt-1 text-gray-600">
+              {winner} won{isSoccer && match.home_score !== null ? ` ${match.home_score}–${match.away_score}` : ''}
+              {match.duration === 'PENALTY_SHOOTOUT' ? ' (Penalties)' : match.duration === 'EXTRA_TIME' ? ' (AET)' : ''}
+            </div>
           ) : null}
           {match.result === 'CANC' && (
             <div className="text-xs text-gray-400 mt-1">Match cancelled</div>
           )}
           {myPick && (
             <div className={`text-xs font-medium mt-1 ${won ? 'text-green-600' : lost ? 'text-red-500' : 'text-gray-500'}`}>
-              You picked {myPick.selected_team_name}
-              {powerup && ` · ${POWERUP_META[powerup].emoji} ${POWERUP_META[powerup].label} ${POWERUP_META[powerup].suffix}`}
+              You picked {myPickDraw ? '⚖ Draw' : myPick.selected_team_name}
+              {powerup && ` · ${PM[powerup].emoji} ${PM[powerup].label} ${PM[powerup].suffix}`}
             </div>
           )}
         </div>
@@ -218,6 +259,7 @@ function ResultCard({ match, myPick, highlighted }) {
           <PickDistribution
             team1={sel.team1} team2={sel.team2}
             team1Count={sel.team1_count} team2Count={sel.team2_count}
+            drawCount={sel.draw_count ?? 0}
             hiddenCount={sel.hidden_count ?? 0}
             isCompleted={true}
           />
@@ -249,7 +291,7 @@ function ResultCard({ match, myPick, highlighted }) {
                             : { background: '#e5e7eb', color: '#374151' }
                           }>
                           {username === user?.username ? `${username} (you)` : username}
-                          {pp && <span title={POWERUP_META[pp].label}> {POWERUP_META[pp].emoji}</span>}
+                          {pp && <span title={PM[pp].label}> {PM[pp].emoji}</span>}
                         </span>
                       )
                     })}
@@ -282,10 +324,10 @@ function ResultCard({ match, myPick, highlighted }) {
             {pointsDisplay?.wall
               ? `🛡️ The Wall blocked your loss — 0 pts`
               : pointsDisplay?.autoLoss
-                ? `💀 Playoff penalty — you didn't pick and were assigned to the losing side (${match.match_points} pt × ${pointsDisplay.count} winners)`
+                ? `💀 Playoff penalty — you didn't pick and were assigned to the losing side (${pointsDisplay.bp} pt × ${pointsDisplay.count} winners)`
                 : pointsDisplay?.positive
-                  ? `You earned ${pointsDisplay?.text} (${match.match_points} pt × ${pointsDisplay.count} opponents who picked the loser)`
-                  : `You lost ${pointsDisplay?.count * match.match_points} pts (${match.match_points} pt × ${pointsDisplay?.count} opponents who picked the winner)`
+                  ? `You earned ${pointsDisplay?.text} (${pointsDisplay.bp} pt × ${pointsDisplay.count} opponents who picked the loser)`
+                  : `You lost ${pointsDisplay?.count * pointsDisplay?.bp} pts (${pointsDisplay?.bp} pt × ${pointsDisplay?.count} opponents who picked the ${isDrawResult ? 'draw' : 'winner'})`
             }
           </p>
         )}

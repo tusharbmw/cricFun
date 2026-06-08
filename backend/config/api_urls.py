@@ -7,12 +7,13 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenBlacklistView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
-from apps.matches.views import MatchViewSet, TeamViewSet
+from apps.matches.views import MatchViewSet, TeamViewSet, TournamentViewSet
 from apps.picks.views import SelectionViewSet
 from apps.leaderboard.views import LeaderboardView, MyRankView, LeaderboardHistoryView
 from apps.users.views import RegisterView, MeView, SocialTokenView
 
 router = DefaultRouter()
+router.register('tournaments', TournamentViewSet, basename='tournament')
 router.register('matches', MatchViewSet, basename='match')
 router.register('teams', TeamViewSet, basename='team')
 router.register('picks', SelectionViewSet, basename='pick')

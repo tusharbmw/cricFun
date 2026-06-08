@@ -1,7 +1,7 @@
 import api from '@/lib/axios'
 
 export const leaderboardAPI = {
-  global:  () => api.get('/leaderboard/'),
-  me:      () => api.get('/leaderboard/me/'),
-  history: () => api.get('/leaderboard/history/'),
+  global:  (tournament) => api.get('/leaderboard/', { params: tournament ? { tournament } : {} }),
+  me:      (tournament) => api.get('/leaderboard/me/', { params: tournament ? { tournament } : {} }),
+  history: (tournament) => api.get('/leaderboard/history/', { params: tournament ? { tournament } : {} }),
 }

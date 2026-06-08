@@ -5,7 +5,8 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from teams.models import Match, Selection
+from teams.models import Match, Selection, Tournament
+from apps.users.models import TournamentEnrollment
 
 
 PICKS_URL = '/api/v1/picks/'
@@ -54,9 +55,10 @@ def test_cannot_pick_on_started_match(auth_client, past_match, team1):
 
 
 @pytest.mark.django_db
-def test_cannot_pick_on_live_match(db, auth_client, team1, team2):
+def test_cannot_pick_on_live_match(db, auth_client, team1, team2, tournament):
     live_match = Match.objects.create(
         team1=team1, team2=team2,
+        tournament=tournament,
         datetime=datetime.now(timezone.utc) - timedelta(minutes=30),
         result='IP',
     )
@@ -177,9 +179,10 @@ def test_cannot_apply_second_powerup(auth_client, selection):
 
 
 @pytest.mark.django_db
-def test_powerup_locked_after_match_starts(db, auth_client, user, team1, team2):
+def test_powerup_locked_after_match_starts(db, auth_client, user, team1, team2, tournament):
     past = Match.objects.create(
         team1=team1, team2=team2,
+        tournament=tournament,
         datetime=datetime.now(timezone.utc) - timedelta(hours=1),
         result='TBD',
     )
@@ -187,3 +190,310 @@ def test_powerup_locked_after_match_starts(db, auth_client, user, team1, team2):
     url = f'{PICKS_URL}{sel.id}/powerup/'
     response = auth_client.post(url, {'powerup_type': 'hidden'})
     assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Soccer — draw pick validation
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_soccer_draw_pick_accepted_in_group_stage(
+    api_client, soccer_user, soccer_tournament, soccer_group_match
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    response = api_client.post(PICKS_URL, {
+        'match': soccer_group_match.id,
+        'draw': True,
+    })
+    assert response.status_code == 201
+    sel = Selection.objects.get()
+    assert sel.draw is True
+    assert sel.selection is None
+
+
+@pytest.mark.django_db
+def test_cricket_draw_pick_rejected(auth_client, upcoming_match):
+    response = auth_client.post(PICKS_URL, {
+        'match': upcoming_match.id,
+        'draw': True,
+    })
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_soccer_draw_pick_rejected_in_knockout(
+    api_client, soccer_user, soccer_tournament, soccer_qf_match
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    response = api_client.post(PICKS_URL, {
+        'match': soccer_qf_match.id,
+        'draw': True,
+    })
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Soccer — hidden auto-applied at QF+
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_soccer_qf_pick_is_auto_hidden(
+    api_client, soccer_user, soccer_tournament, soccer_qf_match, team1
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    response = api_client.post(PICKS_URL, {
+        'match': soccer_qf_match.id,
+        'selection': team1.id,
+    })
+    assert response.status_code == 201
+    sel = Selection.objects.get()
+    assert sel.hidden is True
+
+
+# ---------------------------------------------------------------------------
+# Soccer — powerups blocked at QF+
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_powerup_blocked_at_soccer_qf(
+    api_client, soccer_user, soccer_tournament, soccer_qf_match, team1
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': soccer_qf_match.id, 'selection': team1.id})
+    sel = Selection.objects.get()
+    url = f'{PICKS_URL}{sel.id}/powerup/'
+    response = api_client.post(url, {'powerup_type': 'no_negative'})
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Soccer — fake powerup requires decoy choice
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_soccer_fake_powerup_requires_decoy(
+    api_client, soccer_user, soccer_tournament, soccer_group_match, team1
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': soccer_group_match.id, 'selection': team1.id})
+    sel = Selection.objects.get()
+    url = f'{PICKS_URL}{sel.id}/powerup/'
+    # No fake_selection_id or fake_draw provided
+    response = api_client.post(url, {'powerup_type': 'fake'})
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_soccer_fake_powerup_with_team_decoy(
+    api_client, soccer_user, soccer_tournament, soccer_group_match, team1, team2
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': soccer_group_match.id, 'selection': team1.id})
+    sel = Selection.objects.get()
+    url = f'{PICKS_URL}{sel.id}/powerup/'
+    response = api_client.post(url, {
+        'powerup_type': 'fake',
+        'fake_selection_id': team2.id,
+    })
+    assert response.status_code == 200
+    sel.refresh_from_db()
+    assert sel.fake is True
+    assert sel.fake_selection == team2
+    assert sel.fake_draw is False
+
+
+@pytest.mark.django_db
+def test_soccer_fake_powerup_with_draw_decoy(
+    api_client, soccer_user, soccer_tournament, soccer_group_match, team1
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': soccer_group_match.id, 'selection': team1.id})
+    sel = Selection.objects.get()
+    url = f'{PICKS_URL}{sel.id}/powerup/'
+    response = api_client.post(url, {
+        'powerup_type': 'fake',
+        'fake_draw': True,
+    })
+    assert response.status_code == 200
+    sel.refresh_from_db()
+    assert sel.fake is True
+    assert sel.fake_draw is True
+    assert sel.fake_selection is None
+
+
+@pytest.mark.django_db
+def test_soccer_fake_powerup_toggle_off_clears_decoy(
+    api_client, soccer_user, soccer_tournament, soccer_group_match, team1, team2
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': soccer_group_match.id, 'selection': team1.id})
+    sel = Selection.objects.get()
+    url = f'{PICKS_URL}{sel.id}/powerup/'
+    api_client.post(url, {'powerup_type': 'fake', 'fake_selection_id': team2.id})
+    # Toggle off
+    api_client.post(url, {'powerup_type': 'fake'})
+    sel.refresh_from_db()
+    assert sel.fake is False
+    assert sel.fake_selection is None
+    assert sel.fake_draw is False
+
+
+# ---------------------------------------------------------------------------
+# Soccer R32 — playoff=True but powerups still open, hidden not auto-applied
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_soccer_r32_draw_rejected(
+    api_client, soccer_user, soccer_tournament, soccer_r32_match
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    response = api_client.post(PICKS_URL, {
+        'match': soccer_r32_match.id,
+        'draw': True,
+    })
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_soccer_r32_pick_not_auto_hidden(
+    api_client, soccer_user, soccer_tournament, soccer_r32_match, team1
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': soccer_r32_match.id, 'selection': team1.id})
+    sel = Selection.objects.get()
+    assert sel.hidden is False
+
+
+@pytest.mark.django_db
+def test_powerup_allowed_at_soccer_r32(
+    api_client, soccer_user, soccer_tournament, soccer_r32_match, team1
+):
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': soccer_r32_match.id, 'selection': team1.id})
+    sel = Selection.objects.get()
+    url = f'{PICKS_URL}{sel.id}/powerup/'
+    response = api_client.post(url, {'powerup_type': 'no_negative'})
+    assert response.status_code == 200
+    sel.refresh_from_db()
+    assert sel.no_negative is True
+
+
+# ---------------------------------------------------------------------------
+# TBD team guard
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_cannot_pick_when_team_is_tbd(
+    api_client, soccer_user, soccer_tournament
+):
+    """Pick is rejected when a team has 'TBD' as its name (unconfirmed knockout)."""
+    from teams.models import Team, Match
+    tbd1 = Team.objects.create(name='TBD')
+    tbd2 = Team.objects.create(name='TBD2real')
+    tbd2.name = 'TBD'
+    tbd2.save()
+    match = Match.objects.create(
+        team1=tbd1, team2=tbd2, tournament=soccer_tournament,
+        description='Round of 16',
+        datetime=datetime.now(timezone.utc) + timedelta(hours=48),
+        result='TBD', match_points=3, playoff=True,
+    )
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    response = api_client.post(PICKS_URL, {'match': match.id, 'selection': tbd1.id})
+    assert response.status_code == 400
+    assert 'not yet confirmed' in str(response.data).lower()
+
+
+@pytest.mark.django_db
+def test_cannot_pick_when_one_team_is_tbd(
+    api_client, soccer_user, soccer_tournament, team1
+):
+    """Pick is rejected even when only one of the two teams is TBD."""
+    from teams.models import Team, Match
+    tbd = Team.objects.create(name='TBD')
+    match = Match.objects.create(
+        team1=team1, team2=tbd, tournament=soccer_tournament,
+        description='Round of 16',
+        datetime=datetime.now(timezone.utc) + timedelta(hours=48),
+        result='TBD', match_points=3, playoff=True,
+    )
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    response = api_client.post(PICKS_URL, {'match': match.id, 'selection': team1.id})
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Tournament-scoped stats
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_stats_scoped_to_tournament(
+    api_client, user, tournament, soccer_user, soccer_tournament,
+    upcoming_match, soccer_group_match, team1,
+):
+    """Powerup used in cricket tournament must not reduce soccer tournament budget."""
+    # Apply hidden powerup on cricket pick
+    refresh = RefreshToken.for_user(user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    api_client.post(PICKS_URL, {'match': upcoming_match.id, 'selection': team1.id})
+    cricket_sel = Selection.objects.get(user=user)
+    api_client.post(f'{PICKS_URL}{cricket_sel.id}/powerup/', {'powerup_type': 'hidden'})
+
+    # Soccer user checks their stats scoped to soccer tournament
+    refresh2 = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh2.access_token}')
+    response = api_client.get(STATS_URL, {'tournament': soccer_tournament.id})
+    assert response.status_code == 200
+    # Soccer user has not used any powerups → full budget of 5
+    assert response.data['hidden_count'] == 5
+    assert response.data['fake_count'] == 5
+    assert response.data['no_negative_count'] == 5
+
+
+@pytest.mark.django_db
+def test_stats_missing_picks_scoped_to_tournament(
+    api_client, soccer_user, soccer_tournament, soccer_group_match,
+    tournament, upcoming_match,
+):
+    """missing_picks count only includes matches from the requested tournament."""
+    refresh = RefreshToken.for_user(soccer_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    # Request stats scoped to soccer tournament only
+    response = api_client.get(STATS_URL, {'tournament': soccer_tournament.id})
+    assert response.status_code == 200
+    # soccer_group_match is unpicked and within window — should be 1
+    assert response.data['missing_picks'] == 1
+
+
+# ---------------------------------------------------------------------------
+# Enrollment guard
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_cannot_pick_without_tournament_enrollment(
+    api_client, soccer_tournament, soccer_group_match, team1
+):
+    """User not enrolled in the tournament cannot place a pick."""
+    unenrolled = Match._default_manager.model  # just to get a user
+    from django.contrib.auth.models import User
+    u = User.objects.create_user(username='outsider', password='testpass123')
+    refresh = RefreshToken.for_user(u)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+    response = api_client.post(PICKS_URL, {
+        'match': soccer_group_match.id,
+        'selection': team1.id,
+    })
+    assert response.status_code in (400, 403)

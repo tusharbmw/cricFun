@@ -22,7 +22,7 @@ def process_pick_results(match_id):
         logger.error('process_pick_results: match %s not found', match_id)
         return
 
-    if match.result not in ('team1', 'team2', 'NR'):
+    if match.result not in ('team1', 'team2', 'draw', 'NR'):
         logger.warning('process_pick_results: match %s has no final result yet (%s)', match_id, match.result)
         return
 
@@ -39,7 +39,7 @@ def process_pick_results(match_id):
 
     # For playoff matches, also notify users who didn't pick — they were
     # auto-assigned to the losing side and lost points.
-    if match.playoff and match.result in ('team1', 'team2'):
+    if match.is_high_stakes and match.result in ('team1', 'team2'):
         from django.contrib.auth.models import User
         from apps.notifications.models import Notification, PushSubscription
         from apps.notifications.utils import send_push_notification
@@ -53,8 +53,10 @@ def process_pick_results(match_id):
         )
         picked_user_ids = set(selections.values_list('user_id', flat=True))
         non_pickers = list(
-            User.objects.filter(is_active=True, userprofile__approved=True)
-            .exclude(id__in=picked_user_ids)
+            User.objects.filter(
+                is_active=True,
+                tournament_enrollments__tournament=match.tournament,
+            ).exclude(id__in=picked_user_ids)
         )
         Notification.objects.bulk_create([
             Notification(
@@ -66,7 +68,7 @@ def process_pick_results(match_id):
         for u in non_pickers:
             for sub in PushSubscription.objects.filter(user=u):
                 send_push_notification(
-                    sub, title='CricFun', body=message,
+                    sub, title='TushFun', body=message,
                     url='/results', tag=f'pick-result-{match_id}',
                 )
         logger.info(

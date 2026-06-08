@@ -26,6 +26,7 @@ export function matchStatusBadge(result) {
     TBD:   { label: 'UPCOMING',  variant: 'upcoming'  },
     team1: { label: 'DONE',      variant: 'completed' },
     team2: { label: 'DONE',      variant: 'completed' },
+    draw:  { label: 'DRAW',      variant: 'toss'      },
     NR:    { label: 'NO RESULT', variant: 'completed' },
   }
   const { label, variant } = map[result] ?? { label: result, variant: 'default' }

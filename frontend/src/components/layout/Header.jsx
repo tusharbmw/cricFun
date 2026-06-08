@@ -4,8 +4,54 @@ import { Bell } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import useAuthStore from '@/store/authStore'
+import useTournamentStore from '@/store/tournamentStore'
 import { picksAPI } from '@/api/picks'
 import { notificationsAPI } from '@/api/notifications'
+
+const SPORT_EMOJI = { cricket: '🏏', soccer: '⚽' }
+
+const SPORT_ACCENT = {
+  cricket: { activeBg: '#C49A36', activeText: '#fff' },
+  soccer:  { activeBg: '#2D8B6F', activeText: '#fff' },
+}
+
+function ArenaTabs({ row = false }) {
+  const { tournaments, currentTournament, setTournament } = useTournamentStore()
+  if (tournaments.length < 2) return null
+
+  const tabs = tournaments.map(t => {
+    const isActive = currentTournament?.id === t.id
+    const sp = SPORT_ACCENT[t.sport] ?? { activeBg: '#6366f1', activeText: '#fff' }
+    const emoji = SPORT_EMOJI[t.sport] ?? '🏆'
+    const short = t.name.split(' ').slice(0, 2).join(' ')
+    return (
+      <button
+        key={t.id}
+        onClick={() => !isActive && setTournament(t)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all"
+        style={isActive
+          ? { background: sp.activeBg, color: sp.activeText, cursor: 'default' }
+          : { color: '#6b7280', background: 'transparent' }
+        }
+      >
+        <span>{emoji}</span>
+        <span>{short}</span>
+      </button>
+    )
+  })
+
+  // row=true: full-width second header row on mobile
+  if (row) {
+    return (
+      <div className="flex justify-center gap-2 px-4 py-1.5 border-t border-gray-100">
+        {tabs}
+      </div>
+    )
+  }
+
+  // inline: desktop header between brand and nav
+  return <div className="flex items-center gap-1">{tabs}</div>
+}
 
 const navLinks = [
   { to: '/',          label: 'Home',      end: true },
@@ -202,23 +248,21 @@ export default function Header() {
   return (
     <>
       {/* ── Mobile header ── */}
-      <header className="md:hidden bg-white border-b border-gray-100 px-4 py-3 sticky top-0 z-50 shadow-sm">
-        <div className="flex items-center justify-between">
-          {/* Left: logo + brand + greeting */}
+      <header className="md:hidden bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
+        {/* Row 1: brand + alerts */}
+        <div className="flex items-center justify-between px-4 py-3">
           <Link to="/" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center shrink-0"
               style={{ boxShadow: '0 0 0 2px #fbbf24' }}>
-              <img src="/logo.PNG" alt="CricFun" className="w-7 h-7 object-contain rounded-full" />
+              <img src="/logo.PNG" alt="TushFun" className="w-7 h-7 object-contain rounded-full" />
             </div>
             <div>
-              <div className="text-base font-medium text-indigo-500 leading-tight">CricFun</div>
+              <div className="text-base font-medium text-indigo-500 leading-tight">TushFun</div>
               <div className="text-xs text-gray-500 leading-tight">Hey, {name}! 👋</div>
             </div>
           </Link>
 
-          {/* Right: alert buttons */}
           <div className="flex items-center gap-2">
-            {/* STATE 1: urgent → amber ⚠️ */}
             {isUrgent && (
               <Link to="/schedule"
                 className="relative w-9 h-9 rounded-lg flex items-center justify-center text-base"
@@ -229,18 +273,19 @@ export default function Header() {
                 </span>
               </Link>
             )}
-
             <BellButton
               missingCount={missingCount}
               isUrgent={isUrgent}
               className="w-9 h-9 rounded-lg border border-gray-200"
             />
-
             <Link to="/profile" className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-sm font-semibold text-gray-600">
               {initial}
             </Link>
           </div>
         </div>
+
+        {/* Row 2: arena tabs (only when 2+ tournaments) */}
+        <ArenaTabs row />
       </header>
 
       {/* ── Desktop header ── */}
@@ -251,10 +296,11 @@ export default function Header() {
             <Link to="/" className="flex items-center gap-3 shrink-0">
               <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center"
                 style={{ boxShadow: '0 0 0 2px #fbbf24' }}>
-                <img src="/logo.PNG" alt="CricFun" className="w-7 h-7 object-contain rounded-full" />
+                <img src="/logo.PNG" alt="TushFun" className="w-7 h-7 object-contain rounded-full" />
               </div>
-              <span className="text-lg font-medium text-indigo-500">CricFun</span>
+              <span className="text-lg font-medium text-indigo-500">TushFun</span>
             </Link>
+            <ArenaTabs />
 
             <nav className="flex gap-1">
               {navLinks.map(({ to, label, end }) => (

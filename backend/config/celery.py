@@ -59,4 +59,18 @@ app.conf.beat_schedule = {
         'task': 'apps.notifications.tasks.send_pick_reminders',
         'schedule': 1800.0,  # every 30 minutes
     },
+
+    # Fetch full soccer match schedule once daily at midnight.
+    # Covers all active soccer tournaments; costs 1 API call per tournament.
+    'fetch-football-matches': {
+        'task': 'apps.matches.tasks.fetch_football_matches',
+        'schedule': crontab(hour=0, minute=0),
+    },
+
+    # Sync live soccer scores every 60 s.
+    # Task self-skips when no live or imminent matches → near-zero cost at rest.
+    'sync-football-scores': {
+        'task': 'apps.matches.tasks.sync_football_scores',
+        'schedule': 60.0,
+    },
 }

@@ -327,20 +327,21 @@ def team2(db):
     return Team.objects.create(name='Team Beta')
 
 
-def _match_in(hours, team1, team2):
+def _match_in(hours, team1, team2, tournament):
     """Create a TBD match starting in `hours` from now."""
     return Match.objects.create(
         team1=team1, team2=team2,
+        tournament=tournament,
         datetime=datetime.now(timezone.utc) + timedelta(hours=hours),
         result='TBD', match_points=1,
     )
 
 
 @pytest.mark.django_db
-def test_pick_reminder_24h_sends_push(user, team1, team2):
+def test_pick_reminder_24h_sends_push(user, team1, team2, tournament):
     from apps.notifications.tasks import send_pick_reminders
 
-    _match_in(24, team1, team2)
+    _match_in(24, team1, team2, tournament)
     _make_push_sub(user)
 
     with patch('apps.notifications.utils.send_push_notification', return_value=True) as mock_push:
@@ -351,10 +352,10 @@ def test_pick_reminder_24h_sends_push(user, team1, team2):
 
 
 @pytest.mark.django_db
-def test_pick_reminder_1h_sends_push(user, team1, team2):
+def test_pick_reminder_1h_sends_push(user, team1, team2, tournament):
     from apps.notifications.tasks import send_pick_reminders
 
-    _match_in(1, team1, team2)
+    _match_in(1, team1, team2, tournament)
     _make_push_sub(user)
 
     with patch('apps.notifications.utils.send_push_notification', return_value=True) as mock_push:
@@ -365,10 +366,10 @@ def test_pick_reminder_1h_sends_push(user, team1, team2):
 
 
 @pytest.mark.django_db
-def test_pick_reminder_skips_user_who_already_picked(user, team1, team2):
+def test_pick_reminder_skips_user_who_already_picked(user, team1, team2, tournament):
     from apps.notifications.tasks import send_pick_reminders
 
-    match = _match_in(24, team1, team2)
+    match = _match_in(24, team1, team2, tournament)
     Selection.objects.create(user=user, match=match, selection=team1)
     _make_push_sub(user)
 
@@ -380,10 +381,10 @@ def test_pick_reminder_skips_user_who_already_picked(user, team1, team2):
 
 
 @pytest.mark.django_db
-def test_pick_reminder_skips_user_without_push_sub(user, team1, team2):
+def test_pick_reminder_skips_user_without_push_sub(user, team1, team2, tournament):
     from apps.notifications.tasks import send_pick_reminders
 
-    _match_in(24, team1, team2)
+    _match_in(24, team1, team2, tournament)
     # No PushSubscription for user
 
     with patch('apps.notifications.utils.send_push_notification', return_value=True) as mock_push:
@@ -394,11 +395,11 @@ def test_pick_reminder_skips_user_without_push_sub(user, team1, team2):
 
 
 @pytest.mark.django_db
-def test_pick_reminder_dedup_via_cache(user, team1, team2):
+def test_pick_reminder_dedup_via_cache(user, team1, team2, tournament):
     """Running the task twice should not send duplicate reminders."""
     from apps.notifications.tasks import send_pick_reminders
 
-    _match_in(24, team1, team2)
+    _match_in(24, team1, team2, tournament)
     _make_push_sub(user)
 
     with patch('apps.notifications.utils.send_push_notification', return_value=True) as mock_push:
@@ -409,12 +410,12 @@ def test_pick_reminder_dedup_via_cache(user, team1, team2):
 
 
 @pytest.mark.django_db
-def test_pick_reminder_ignores_past_matches(user, team1, team2):
+def test_pick_reminder_ignores_past_matches(user, team1, team2, tournament):
     from apps.notifications.tasks import send_pick_reminders
 
-    # Match started 1 hour ago — already locked
     Match.objects.create(
         team1=team1, team2=team2,
+        tournament=tournament,
         datetime=datetime.now(timezone.utc) - timedelta(hours=1),
         result='TBD', match_points=1,
     )

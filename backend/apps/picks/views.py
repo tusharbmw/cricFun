@@ -13,11 +13,14 @@ from .serializers import SelectionSerializer, PowerupSerializer, PowerupStatsSer
 POWERUP_BUDGET = 5
 
 
-def get_powerup_stats(user):
-    """Return remaining powerup counts for a user."""
+def get_powerup_stats(user, tournament_id=None):
+    """Return remaining powerup counts for a user, scoped to a tournament."""
     counts = {'hidden': 0, 'fake': 0, 'no_negative': 0}
-    for s in Selection.objects.filter(user=user).select_related('match'):
-        if s.hidden and not s.match.playoff:
+    qs = Selection.objects.filter(user=user).select_related('match__tournament')
+    if tournament_id:
+        qs = qs.filter(match__tournament_id=tournament_id)
+    for s in qs:
+        if s.hidden and not s.match.is_high_stakes:
             counts['hidden'] += 1
         if s.fake:
             counts['fake'] += 1
@@ -53,13 +56,20 @@ class SelectionViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import PermissionDenied, ValidationError
+        from apps.users.models import TournamentEnrollment
         match = serializer.validated_data['match']
-        hidden = match.playoff
-        serializer.save(user=self.request.user, hidden=hidden)
+        if not match.team1 or not match.team2 or not match.team1.name or not match.team2.name or match.team1.name == 'TBD' or match.team2.name == 'TBD':
+            raise ValidationError({'match': 'Teams for this match are not yet confirmed.'})
+        if not TournamentEnrollment.objects.filter(
+            user=self.request.user, tournament=match.tournament
+        ).exists():
+            raise PermissionDenied('You are not enrolled in this tournament.')
+        serializer.save(user=self.request.user, hidden=match.is_high_stakes)
 
     def destroy(self, request, *args, **kwargs):
         obj = self.get_object()
-        has_user_powerup = (obj.hidden and not obj.match.playoff) or obj.fake or obj.no_negative
+        has_user_powerup = (obj.hidden and not obj.match.is_high_stakes) or obj.fake or obj.no_negative
         if has_user_powerup:
             return Response(
                 {'error': "Cannot remove a pick with a powerup applied."},
@@ -92,8 +102,9 @@ class SelectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        """Remaining powerup counts and missing pick count."""
-        powerup_stats = get_powerup_stats(request.user)
+        """Remaining powerup counts and missing pick count, scoped to a tournament."""
+        tournament_id = request.query_params.get('tournament') or None
+        powerup_stats = get_powerup_stats(request.user, tournament_id)
 
         # Missing picks: TBD matches within the pick window without a selection
         from apps.core.models import SiteSettings
@@ -102,6 +113,8 @@ class SelectionViewSet(viewsets.ModelViewSet):
         missing_qs = Match.objects.filter(
             result='TBD', datetime__gte=now, datetime__lte=now + timedelta(days=window)
         ).exclude(selection__user=request.user)
+        if tournament_id:
+            missing_qs = missing_qs.filter(tournament_id=tournament_id)
         missing = missing_qs.count()
         urgent_missing = missing_qs.filter(datetime__lte=now + timedelta(hours=24)).count()
 
@@ -114,8 +127,8 @@ class SelectionViewSet(viewsets.ModelViewSet):
         """
         selection = self.get_object()
 
-        if selection.match.playoff:
-            return Response({'error': 'Powerups are disabled during playoffs.'}, status=400)
+        if selection.match.is_high_stakes:
+            return Response({'error': 'Powerups are disabled at this stage.'}, status=400)
 
         serializer = PowerupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -129,7 +142,12 @@ class SelectionViewSet(viewsets.ModelViewSet):
         if getattr(selection, powerup_type):
             # Already applied — remove it (toggle off)
             setattr(selection, powerup_type, False)
-            selection.save(update_fields=[powerup_type, 'updated_at'])
+            if powerup_type == 'fake':
+                selection.fake_selection = None
+                selection.fake_draw = False
+                selection.save(update_fields=['fake', 'fake_selection', 'fake_draw', 'updated_at'])
+            else:
+                selection.save(update_fields=[powerup_type, 'updated_at'])
             return Response({'success': f'{powerup_type} powerup removed.'})
 
         # Check no other powerup is already active on this pick
@@ -142,6 +160,23 @@ class SelectionViewSet(viewsets.ModelViewSet):
         if stats[f'{powerup_type}_count'] <= 0:
             return Response({'error': f'No {powerup_type} powerups remaining.'}, status=400)
 
+        # Soccer fake powerup: user must specify what rivals see as the decoy
+        if powerup_type == 'fake':
+            from teams.models import Tournament
+            if selection.match.tournament.sport == Tournament.Sport.SOCCER:
+                fake_sel = serializer.validated_data.get('fake_selection_id')
+                fake_draw = serializer.validated_data.get('fake_draw', False)
+                if not fake_sel and not fake_draw:
+                    return Response(
+                        {'error': 'Provide fake_selection_id or fake_draw=true for soccer matches.'},
+                        status=400,
+                    )
+                selection.fake_selection = fake_sel
+                selection.fake_draw = fake_draw
+
         setattr(selection, powerup_type, True)
-        selection.save(update_fields=[powerup_type, 'updated_at'])
+        if powerup_type == 'fake':
+            selection.save(update_fields=['fake', 'fake_selection', 'fake_draw', 'updated_at'])
+        else:
+            selection.save(update_fields=[powerup_type, 'updated_at'])
         return Response({'success': f'{powerup_type} powerup applied.'})
