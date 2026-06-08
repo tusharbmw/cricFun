@@ -26,7 +26,7 @@ from celery import shared_task
 from django.core.cache import cache
 from django.db.models import Q
 
-from teams.models import Match, Team
+from teams.models import Match, Team, Tournament
 from apps.core import cricapi
 
 logger = logging.getLogger(__name__)
@@ -198,6 +198,11 @@ def fetch_upcoming_matches():
                 },
             )
 
+            tournament, _ = Tournament.objects.get_or_create(
+                name=md['tournament'],
+                defaults={'sport': Tournament.Sport.CRICKET},
+            )
+
             Match.objects.create(
                 match_id=md['match_id'],
                 team1=team1,
@@ -206,7 +211,7 @@ def fetch_upcoming_matches():
                 venue=md['venue'],
                 result='TBD',
                 datetime=match_dt,
-                tournament=md['tournament'],
+                tournament=tournament,
                 match_points=_decide_match_weight(md['Description']),
                 playoff=_is_playoff(md['Description']),
             )
