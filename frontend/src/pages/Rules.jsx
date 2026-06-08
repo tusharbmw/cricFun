@@ -111,6 +111,7 @@ export default function Rules() {
           <div>❌ <strong>Loss:</strong> −PV × (opponents who picked the winner)</div>
           <div>⏭️ <strong>Skip:</strong> 0 points (counts toward 5-skip limit)</div>
           <div>🤝 <strong>Tie / No Result:</strong> 0 points for everyone</div>
+          <div>🚫 <strong>Abandoned / No Result:</strong> match is voided — no points awarded or deducted for anyone</div>
         </div>
         <div className="mt-3 space-y-2 text-xs text-gray-500">
           <p><strong>Example (PV=1):</strong> Tushar & Raj pick Team A, Sam picks Team B. Team A wins → Tushar & Raj each get +1, Sam gets −2.</p>
@@ -221,6 +222,7 @@ export default function Rules() {
           <div className="mt-2 font-medium text-gray-700">Your score:</div>
           <div>✅ <strong>Correct pick:</strong> +BP × (opponents who picked wrong)</div>
           <div>❌ <strong>Wrong pick:</strong> −BP × (opponents who picked right)</div>
+          <div>🚫 <strong>Abandoned / No Result:</strong> match is voided — no points awarded or deducted for anyone</div>
         </div>
         <div className="mt-3 space-y-1.5 text-xs text-gray-500">
           <p><strong>Example (PV=1):</strong> England win 2–0. Goal diff = 2, so BP = 2.</p>
