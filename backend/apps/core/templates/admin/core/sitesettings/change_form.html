@@ -130,9 +130,12 @@
   </div>
 
   <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 24px;">
-    <button type="button" class="button default" disabled title="Available once soccer sync tasks are set up (Phase 4)">
-      📥 Fetch Soccer Matches
-    </button>
+    <form method="post" action="{% url 'admin:sitesettings_fetch_soccer_matches' %}">
+      {% csrf_token %}
+      <button type="submit" class="button default" title="Fetch full soccer schedule from football-data.org (1 API call per active soccer tournament)">
+        📥 Fetch Soccer Matches
+      </button>
+    </form>
     <form method="post" action="{% url 'admin:sitesettings_toggle_football_api_pause' %}">
       {% csrf_token %}
       {% if football_api_paused %}

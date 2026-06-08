@@ -123,6 +123,11 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.toggle_football_api_pause_view),
                 name='sitesettings_toggle_football_api_pause',
             ),
+            path(
+                'fetch-soccer-matches/',
+                self.admin_site.admin_view(self.fetch_soccer_matches_view),
+                name='sitesettings_fetch_soccer_matches',
+            ),
         ]
         return custom + urls
 
@@ -269,6 +274,14 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         settings.save()
         state = 'PAUSED' if settings.cricket_api_paused else 'RESUMED'
         messages.success(request, f'Cricket API calls {state}.')
+        return redirect(self._settings_change_url(request))
+
+    def fetch_soccer_matches_view(self, request):
+        if request.method != 'POST':
+            return redirect(self._settings_change_url(request))
+        from apps.matches.tasks import fetch_football_matches
+        result = fetch_football_matches()
+        messages.success(request, f'Fetch soccer matches: {result}')
         return redirect(self._settings_change_url(request))
 
     def toggle_football_api_pause_view(self, request):
