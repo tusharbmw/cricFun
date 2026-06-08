@@ -14,7 +14,7 @@ const useAuthStore = create((set) => ({
     try {
       const { data } = await authAPI.me()
       Sentry.setUser({ id: data.id, username: data.username })
-      posthog.identify(data.username, { email: data.email, is_approved: data.is_approved })
+      posthog.identify(data.username, { email: data.email, enrolled_tournament_ids: data.enrolled_tournament_ids })
       set({ user: data, isAuthenticated: true, isLoading: false })
     } catch {
       localStorage.removeItem('access_token')
@@ -29,7 +29,7 @@ const useAuthStore = create((set) => ({
     localStorage.setItem('refresh_token', data.refresh)
     const { data: user } = await authAPI.me()
     Sentry.setUser({ id: user.id, username: user.username })
-    posthog.identify(user.username, { email: user.email, is_approved: user.is_approved })
+    posthog.identify(user.username, { email: user.email, enrolled_tournament_ids: user.enrolled_tournament_ids })
     set({ user, isAuthenticated: true })
     return user
   },
