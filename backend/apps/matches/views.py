@@ -5,9 +5,18 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
-from teams.models import Team, Match
+from teams.models import Team, Match, Tournament
 from apps.core.permissions import IsAdminOrReadOnly
-from .serializers import MatchSerializer, TeamSerializer
+from .serializers import MatchSerializer, TeamSerializer, TournamentSerializer
+
+
+class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
+    """Active tournaments. Frontend uses this to build the arena chooser and switcher."""
+    serializer_class = TournamentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Tournament.objects.filter(is_active=True)
 
 
 class TeamViewSet(viewsets.ReadOnlyModelViewSet):

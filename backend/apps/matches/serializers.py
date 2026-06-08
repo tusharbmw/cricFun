@@ -1,5 +1,12 @@
 from rest_framework import serializers
-from teams.models import Team, Match
+from teams.models import Match, Team, Tournament
+
+
+class TournamentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tournament
+        fields = ['id', 'name', 'sport', 'season', 'state', 'external_id']
+        read_only_fields = fields
 
 
 class TeamSerializer(serializers.ModelSerializer):

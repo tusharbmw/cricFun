@@ -53,7 +53,13 @@ class SelectionViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import PermissionDenied
+        from apps.users.models import TournamentEnrollment
         match = serializer.validated_data['match']
+        if not TournamentEnrollment.objects.filter(
+            user=self.request.user, tournament=match.tournament
+        ).exists():
+            raise PermissionDenied('You are not enrolled in this tournament.')
         hidden = match.playoff
         serializer.save(user=self.request.user, hidden=hidden)
 

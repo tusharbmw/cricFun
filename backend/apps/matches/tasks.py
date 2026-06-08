@@ -26,6 +26,7 @@ from celery import shared_task
 from django.core.cache import cache
 from django.db.models import Q
 
+from django.db.models import Q as DQ
 from teams.models import Match, Team, Tournament
 from apps.core import cricapi
 
@@ -221,6 +222,17 @@ def fetch_upcoming_matches():
         except Exception as exc:
             logger.error('Error adding match %s: %s', md.get('match_id'), exc)
 
+    # Refresh state for all tournaments touched in this run
+    seen_tournaments = {
+        t for t in Match.objects.filter(result='TBD').values_list('tournament', flat=True)
+        if t is not None
+    }
+    for t_id in seen_tournaments:
+        try:
+            update_tournament_state(Tournament.objects.get(pk=t_id))
+        except Tournament.DoesNotExist:
+            pass
+
     return f'{added} new matches added; {updated_ids} match_ids updated'
 
 
@@ -230,6 +242,52 @@ def finalize_match_results(match_id):
     from apps.picks.tasks import process_pick_results
     process_pick_results.delay(match_id)
     return f'finalize triggered for match {match_id}'
+
+
+def update_tournament_state(tournament):
+    """
+    Derive Tournament.state from the current or next match stage and save it.
+    Looks at the earliest live/upcoming match, falling back to the most recent completed one.
+    Called after each sync so the arena-chooser badge stays accurate automatically.
+    """
+    active = (
+        Match.objects
+        .filter(tournament=tournament)
+        .filter(DQ(result='IP') | DQ(result='TBD') | DQ(result='TOSS'))
+        .order_by('datetime')
+        .first()
+    )
+    ref = active or (
+        Match.objects
+        .filter(tournament=tournament, result__in=['team1', 'team2', 'draw', 'NR'])
+        .order_by('-datetime')
+        .first()
+    )
+    if not ref or not ref.description:
+        return
+
+    desc = ref.description
+    if 'Final' in desc and 'Semi' not in desc and 'Quarter' not in desc and 'Third' not in desc:
+        state = 'Final'
+    elif 'Third' in desc:
+        state = 'Third Place'
+    elif 'Semi' in desc:
+        state = 'Semi-finals'
+    elif 'Quarter' in desc:
+        state = 'Quarter-finals'
+    elif 'Round of 16' in desc or 'Last 16' in desc:
+        state = 'Round of 16'
+    elif 'Round of 32' in desc or 'Last 32' in desc:
+        state = 'Round of 32'
+    elif 'Playoff' in desc or 'playoff' in desc:
+        state = 'Playoffs'
+    else:
+        state = 'Group Stage'
+
+    if tournament.state != state:
+        tournament.state = state
+        tournament.save(update_fields=['state'])
+        logger.info('Tournament state updated: %s → %s', tournament.name, state)
 
 
 def _decide_match_weight(description: str) -> int:
