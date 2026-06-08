@@ -16,6 +16,11 @@ def send_push_notification(subscription, title, body, url='/', tag=None):
     Deletes the subscription if it returns 404/410 (expired/unsubscribed).
     Returns True on success, False otherwise.
     """
+    from apps.core.models import SiteSettings
+    if SiteSettings.get().notifications_paused:
+        logger.debug('Notifications paused (SiteSettings) — push skipped')
+        return False
+
     try:
         from pywebpush import WebPushException, webpush
     except ImportError:
