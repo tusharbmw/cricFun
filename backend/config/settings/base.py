@@ -211,6 +211,9 @@ CRICKET_API_KEY = os.environ.get('CRIC_API_KEY', '')
 CRICKET_TOURNAMENT_ID = os.environ.get('CRIC_TOURNAMENT_ID', '')
 CRICKET_API_DAILY_LIMIT = int(os.environ.get('CRICKET_API_DAILY_LIMIT', '100'))
 
+# Football API (football-data.org)
+FOOTBALL_DATA_API_KEY = os.environ.get('FOOTBALL_DATA_API_KEY', '')
+
 # drf-spectacular (API docs)
 SPECTACULAR_SETTINGS = {
     'TITLE': 'CricFun API',

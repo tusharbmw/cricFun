@@ -48,7 +48,7 @@ def _get_panel_context():
 
 @admin.register(SiteSettings)
 class SiteSettingsAdmin(admin.ModelAdmin):
-    fields = ['tournament_id', 'pick_window_days', 'api_paused']
+    fields = ['tournament_id', 'pick_window_days', 'api_paused', 'notifications_paused']
     change_form_template = 'admin/core/sitesettings/change_form.html'
 
     def has_add_permission(self, request):
@@ -103,6 +103,11 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 'toggle-api-pause/',
                 self.admin_site.admin_view(self.toggle_api_pause_view),
                 name='sitesettings_toggle_api_pause',
+            ),
+            path(
+                'toggle-notifications-pause/',
+                self.admin_site.admin_view(self.toggle_notifications_pause_view),
+                name='sitesettings_toggle_notifications_pause',
             ),
         ]
         return custom + urls
@@ -250,6 +255,16 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         settings.save()
         state = 'PAUSED' if settings.api_paused else 'RESUMED'
         messages.success(request, f'CricAPI calls {state}.')
+        return redirect(self._settings_change_url(request))
+
+    def toggle_notifications_pause_view(self, request):
+        if request.method != 'POST':
+            return redirect(self._settings_change_url(request))
+        settings = SiteSettings.get()
+        settings.notifications_paused = not settings.notifications_paused
+        settings.save()
+        state = 'PAUSED' if settings.notifications_paused else 'RESUMED'
+        messages.success(request, f'Notifications {state}.')
         return redirect(self._settings_change_url(request))
 
     # ------------------------------------------------------------------

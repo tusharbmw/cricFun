@@ -15,6 +15,11 @@ def notify_pick_result(selection_id, match_id):
     Notify a user that their pick result is available.
     Creates an in-app notification and sends a Web Push if they have subscriptions.
     """
+    from apps.core.models import SiteSettings
+    if SiteSettings.get().notifications_paused:
+        logger.info('notify_pick_result: notifications paused (SiteSettings), skipping')
+        return
+
     from django.contrib.auth.models import User
     from teams.models import Match, Selection
     from apps.notifications.models import Notification, PushSubscription
@@ -64,6 +69,11 @@ def notify_rank_change(new_leader, match_id, prev_leader=None):
     Create an in-app Notification for ALL active users when rank #1 changes,
     and send a Web Push to each user's subscribed devices.
     """
+    from apps.core.models import SiteSettings
+    if SiteSettings.get().notifications_paused:
+        logger.info('notify_rank_change: notifications paused (SiteSettings), skipping')
+        return
+
     from django.contrib.auth.models import User
     from apps.notifications.models import Notification, PushSubscription
     from apps.notifications.utils import send_push_notification
@@ -100,6 +110,11 @@ def send_custom_notification(title, message, url, user_ids):
     Send an admin-authored custom notification to a list of users.
     Creates in-app Notification records and sends Web Push to subscribers.
     """
+    from apps.core.models import SiteSettings
+    if SiteSettings.get().notifications_paused:
+        logger.info('send_custom_notification: notifications paused (SiteSettings), skipping')
+        return {'in_app': 0, 'push': 0}
+
     from django.contrib.auth.models import User
     from apps.notifications.models import Notification, PushSubscription
     from apps.notifications.utils import send_push_notification
@@ -159,6 +174,11 @@ def send_pick_reminders():
     Redis cache prevents duplicate sends within each window.
     No in-app notification — the sticky dropdown notice already covers that.
     """
+    from apps.core.models import SiteSettings
+    if SiteSettings.get().notifications_paused:
+        logger.info('send_pick_reminders: notifications paused (SiteSettings), skipping')
+        return {'sent': 0}
+
     from django.core.cache import cache
     from teams.models import Match, Selection
     from apps.notifications.models import PushSubscription
@@ -217,6 +237,11 @@ def notify_personal_rank_changes(changes, match_id):
     Notify each user whose rank moved after a match result.
     changes: [{'user_id': int, 'old_rank': int, 'new_rank': int, 'moved_up': bool}]
     """
+    from apps.core.models import SiteSettings
+    if SiteSettings.get().notifications_paused:
+        logger.info('notify_personal_rank_changes: notifications paused (SiteSettings), skipping')
+        return
+
     from django.contrib.auth.models import User
     from apps.notifications.models import Notification, PushSubscription
     from apps.notifications.utils import send_push_notification
@@ -258,6 +283,11 @@ def notify_tournament_over(match_id, top3_text):
     Notify all active approved users that the tournament is over with top-3 results.
     Fired once after the Final match snapshot is taken.
     """
+    from apps.core.models import SiteSettings
+    if SiteSettings.get().notifications_paused:
+        logger.info('notify_tournament_over: notifications paused (SiteSettings), skipping')
+        return
+
     from django.contrib.auth.models import User
     from apps.notifications.models import Notification, PushSubscription
     from apps.notifications.utils import send_push_notification
