@@ -63,8 +63,8 @@ def calculate_scores(upto_match_id=None, tournament=None):
         }
 
     matches_qs = Match.objects.filter(
-        Q(result='team1') | Q(result='team2')
-    ).prefetch_related('selection_set__user', 'selection_set__selection')
+        Q(result='team1') | Q(result='team2') | Q(result='draw')
+    ).select_related('tournament').prefetch_related('selection_set__user', 'selection_set__selection')
 
     if tournament is not None:
         matches_qs = matches_qs.filter(tournament=tournament)
@@ -77,12 +77,17 @@ def calculate_scores(upto_match_id=None, tournament=None):
             pass  # fall through — compute full scores
 
     for mr in matches_qs:
-        sel1    = []
-        sel2    = []
-        no_neg  = []
+        is_soccer = mr.tournament.sport == 'soccer'
+
+        sel1     = []   # picked team1
+        sel2     = []   # picked team2
+        sel_draw = []   # picked draw (soccer group stage only)
+        no_neg   = []
 
         for s in mr.selection_set.all():
-            if s.selection == mr.team1:
+            if s.draw:
+                sel_draw.append(s.user.username)
+            elif s.selection == mr.team1:
                 sel1.append(s.user.username)
             elif s.selection == mr.team2:
                 sel2.append(s.user.username)
@@ -92,41 +97,50 @@ def calculate_scores(upto_match_id=None, tournament=None):
                 if s.user.username in scores:
                     scores[s.user.username]['powerups_used'] += 1
 
-        pickers = set(sel1 + sel2)
+        pickers = set(sel1 + sel2 + sel_draw)
         non_pickers = [u for u in scores if u not in pickers]
 
-        if mr.playoff:
-            # Playoff: non-pickers are assigned to the losing side as a penalty.
-            # They don't count toward the skip limit but lose points as if they
-            # had picked the loser. Winners also gain from the larger losing pool.
-            if mr.result == 'team1':
-                sel2 = sel2 + non_pickers  # team2 lost
+        # Compute BP (base points for this match)
+        if is_soccer:
+            if mr.home_score is None or mr.away_score is None:
+                continue  # score data not available yet
+            if mr.result == 'draw':
+                bp = mr.match_points * (mr.home_score + mr.away_score + 1)
             else:
-                sel1 = sel1 + non_pickers  # team1 lost
+                goal_diff = abs(mr.home_score - mr.away_score)
+                # min 1 so shootout (0 goal diff in regular play) still awards points
+                bp = mr.match_points * max(1, min(goal_diff, 3))
+        else:
+            bp = mr.match_points
+
+        if mr.playoff:
+            # Non-pickers take the losing side penalty
+            if mr.result == 'team1':
+                sel2 = sel2 + non_pickers
+            elif mr.result == 'team2':
+                sel1 = sel1 + non_pickers
         else:
             for username in non_pickers:
-                scores[username]['skipped'] += 1
+                if username in scores:
+                    scores[username]['skipped'] += 1
 
+        # Determine correct vs wrong pickers
         if mr.result == 'team1':
-            for u in sel1:
-                if u in scores:
-                    scores[u]['won']         += len(sel2) * mr.match_points
-                    scores[u]['matches_won'] += 1
-            for u in sel2:
-                if u in scores:
-                    if u not in no_neg:
-                        scores[u]['lost']         += len(sel1) * mr.match_points
-                    scores[u]['matches_lost'] += 1
-        else:  # team2 won
-            for u in sel2:
-                if u in scores:
-                    scores[u]['won']         += len(sel1) * mr.match_points
-                    scores[u]['matches_won'] += 1
-            for u in sel1:
-                if u in scores:
-                    if u not in no_neg:
-                        scores[u]['lost']         += len(sel2) * mr.match_points
-                    scores[u]['matches_lost'] += 1
+            correct, wrong = sel1, sel2 + sel_draw
+        elif mr.result == 'team2':
+            correct, wrong = sel2, sel1 + sel_draw
+        else:  # draw
+            correct, wrong = sel_draw, sel1 + sel2
+
+        for u in correct:
+            if u in scores:
+                scores[u]['won']         += len(wrong) * bp
+                scores[u]['matches_won'] += 1
+        for u in wrong:
+            if u in scores:
+                if u not in no_neg:
+                    scores[u]['lost']         += len(correct) * bp
+                scores[u]['matches_lost'] += 1
 
     for username, data in scores.items():
         total = data['won'] - data['lost']

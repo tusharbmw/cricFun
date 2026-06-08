@@ -135,7 +135,12 @@ class SelectionViewSet(viewsets.ModelViewSet):
         if getattr(selection, powerup_type):
             # Already applied — remove it (toggle off)
             setattr(selection, powerup_type, False)
-            selection.save(update_fields=[powerup_type, 'updated_at'])
+            if powerup_type == 'fake':
+                selection.fake_selection = None
+                selection.fake_draw = False
+                selection.save(update_fields=['fake', 'fake_selection', 'fake_draw', 'updated_at'])
+            else:
+                selection.save(update_fields=[powerup_type, 'updated_at'])
             return Response({'success': f'{powerup_type} powerup removed.'})
 
         # Check no other powerup is already active on this pick
@@ -148,6 +153,23 @@ class SelectionViewSet(viewsets.ModelViewSet):
         if stats[f'{powerup_type}_count'] <= 0:
             return Response({'error': f'No {powerup_type} powerups remaining.'}, status=400)
 
+        # Soccer fake powerup: user must specify what rivals see as the decoy
+        if powerup_type == 'fake':
+            from teams.models import Tournament
+            if selection.match.tournament.sport == Tournament.Sport.SOCCER:
+                fake_sel = serializer.validated_data.get('fake_selection_id')
+                fake_draw = serializer.validated_data.get('fake_draw', False)
+                if not fake_sel and not fake_draw:
+                    return Response(
+                        {'error': 'Provide fake_selection_id or fake_draw=true for soccer matches.'},
+                        status=400,
+                    )
+                selection.fake_selection = fake_sel
+                selection.fake_draw = fake_draw
+
         setattr(selection, powerup_type, True)
-        selection.save(update_fields=[powerup_type, 'updated_at'])
+        if powerup_type == 'fake':
+            selection.save(update_fields=['fake', 'fake_selection', 'fake_draw', 'updated_at'])
+        else:
+            selection.save(update_fields=[powerup_type, 'updated_at'])
         return Response({'success': f'{powerup_type} powerup applied.'})

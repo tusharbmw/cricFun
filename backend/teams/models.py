@@ -104,6 +104,12 @@ class Selection(models.Model):
     hidden = models.BooleanField(default=False)
     no_negative = models.BooleanField(default=False)
     fake = models.BooleanField(default=False)
+    # Soccer fake powerup: user explicitly chooses what rivals see as the decoy
+    fake_selection = models.ForeignKey(
+        Team, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='fake_selections',
+    )
+    fake_draw = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

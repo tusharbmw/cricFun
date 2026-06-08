@@ -175,34 +175,45 @@ class MatchViewSet(viewsets.ModelViewSet):
 
         sel1_users = []
         sel2_users = []
+        sel_draw_users = []
         hidden_count = 0
         powerups = {}  # {username: 'hidden'|'fake'|'no_negative'} — only populated when locked
 
-        for s in match.selection_set.select_related('user', 'selection').filter(
-            user__tournament_enrollments__tournament=match.tournament
-        ):
+        for s in match.selection_set.select_related(
+            'user', 'selection', 'fake_selection'
+        ).filter(user__tournament_enrollments__tournament=match.tournament):
             is_own = s.user_id == request.user.id
 
             if not is_locked and not is_own:
-                # Hidden: mask entirely — show in hidden bucket
+                # Hidden: mask entirely
                 if s.hidden:
                     hidden_count += 1
                     continue
-                # Googly/Fake: show opposite team as decoy
+                # Fake: show the decoy the user chose
                 if s.fake:
-                    if s.selection == match.team1:
-                        sel2_users.append(s.user.username)
-                    elif s.selection == match.team2:
-                        sel1_users.append(s.user.username)
+                    if s.fake_draw:
+                        sel_draw_users.append(s.user.username)
+                    elif s.fake_selection:
+                        if s.fake_selection == match.team1:
+                            sel1_users.append(s.user.username)
+                        elif s.fake_selection == match.team2:
+                            sel2_users.append(s.user.username)
+                    else:
+                        # Cricket fallback: show opposite team
+                        if s.selection == match.team1:
+                            sel2_users.append(s.user.username)
+                        elif s.selection == match.team2:
+                            sel1_users.append(s.user.username)
                     continue
 
-            # Own pick, or match locked: always show real pick
-            if s.selection == match.team1:
+            # Own pick, or match locked: show real pick
+            if s.draw:
+                sel_draw_users.append(s.user.username)
+            elif s.selection == match.team1:
                 sel1_users.append(s.user.username)
             elif s.selection == match.team2:
                 sel2_users.append(s.user.username)
 
-            # Record which powerplay (if any) was used — only revealed once locked
             if is_locked:
                 if s.hidden:
                     powerups[s.user.username] = 'hidden'
@@ -211,8 +222,7 @@ class MatchViewSet(viewsets.ModelViewSet):
                 elif s.no_negative:
                     powerups[s.user.username] = 'no_negative'
 
-        # For completed playoff matches, compute non-pickers and assign them to
-        # the losing side — mirroring the scoring logic in calculate_scores().
+        # For completed playoff matches, assign non-pickers to the losing side
         team1_auto = []
         team2_auto = []
         if match.playoff and match.result in ('team1', 'team2'):
@@ -226,9 +236,9 @@ class MatchViewSet(viewsets.ModelViewSet):
             picked_usernames = set(sel1_users) | set(sel2_users)
             non_pickers = sorted(all_usernames - picked_usernames)
             if match.result == 'team1':
-                team2_auto = non_pickers   # team1 won → losers are team2 side
+                team2_auto = non_pickers
             else:
-                team1_auto = non_pickers   # team2 won → losers are team1 side
+                team1_auto = non_pickers
 
         return Response({
             'match_id': match.id,
@@ -238,6 +248,8 @@ class MatchViewSet(viewsets.ModelViewSet):
             'team1_count': len(sel1_users) + len(team1_auto),
             'team2_selections': sel2_users,
             'team2_count': len(sel2_users) + len(team2_auto),
+            'draw_selections': sel_draw_users,
+            'draw_count': len(sel_draw_users),
             'team1_auto': team1_auto,
             'team2_auto': team2_auto,
             'hidden_count': hidden_count,
