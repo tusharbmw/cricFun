@@ -107,7 +107,7 @@ function MatchPickRow({ match, existingPick, stats }) {
       qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
       setShowChangePick(false)
     } catch (err) {
-      setSaveError(err.response?.data?.non_field_errors?.[0] ?? err.response?.data?.draw?.[0] ?? 'Failed to save')
+      setSaveError(err.response?.data?.detail ?? err.response?.data?.non_field_errors?.[0] ?? err.response?.data?.draw?.[0] ?? 'Failed to save')
       setSelected(prevSelected)
     } finally {
       setSaving(false)
