@@ -120,10 +120,23 @@ def calculate_scores(upto_match_id=None, tournament=None):
             elif mr.result == 'team2':
                 sel1 = sel1 + non_pickers
         else:
-            # Group stage + R32/R16 (soccer): skipping costs a skip slot
+            # Group stage + R32/R16: first MAX_SKIPPED_ALLOWED skips are free;
+            # excess skips get auto-assigned to the losing side (same penalty as high-stakes)
+            penalised = []
             for username in non_pickers:
-                if username in scores:
+                if username not in scores:
+                    continue
+                if scores[username]['skipped'] < MAX_SKIPPED_ALLOWED:
                     scores[username]['skipped'] += 1
+                else:
+                    penalised.append(username)
+            if penalised:
+                if mr.result == 'team1':
+                    sel2 = sel2 + penalised
+                elif mr.result == 'team2':
+                    sel1 = sel1 + penalised
+                else:  # draw — assign to team1 side, both sides lose vs draw pickers
+                    sel1 = sel1 + penalised
 
         # Determine correct vs wrong pickers
         if mr.result == 'team1':
@@ -144,10 +157,7 @@ def calculate_scores(upto_match_id=None, tournament=None):
                 scores[u]['matches_lost'] += 1
 
     for username, data in scores.items():
-        total = data['won'] - data['lost']
-        if data['skipped'] > MAX_SKIPPED_ALLOWED:
-            total = DISQUALIFICATION_SCORE
-        data['total'] = total
+        data['total'] = data['won'] - data['lost']
 
     return scores
 

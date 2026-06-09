@@ -66,10 +66,10 @@ export default function Rules() {
       <div className="space-y-2 text-sm text-gray-600">
         <p>
           Don't feel like picking? You can skip — just leave a match without placing a pick.
-          Skips earn <strong>0 points</strong> and you're allowed up to <strong>5 skips</strong> per tournament.
+          Your first <strong>5 skips</strong> are free (0 points).
         </p>
         <p className="text-xs text-amber-600 font-medium">
-          ⚠ Skipping more than 5 matches disqualifies you (score drops to −999).
+          ⚠ From your 6th skip onwards, you are automatically assigned the losing side of that match — you lose points as if you had picked the loser.
         </p>
       </div>
     ),
