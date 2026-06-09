@@ -8,6 +8,7 @@ Mapping functions are pure (no I/O) so they're easy to unit-test.
 """
 import json
 import logging
+import time
 import urllib.request
 
 from django.conf import settings
@@ -141,11 +142,18 @@ def fetch_matches(competition_code: str, **params) -> list:
         url = f'{url}?{qs}'
 
     req = urllib.request.Request(url, headers={'X-Auth-Token': key})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode())
-    except Exception as exc:
-        logger.error('fetch_matches request failed for %s: %s', competition_code, exc)
+    last_exc = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+            break
+        except Exception as exc:
+            last_exc = exc
+            if attempt < 2:
+                time.sleep(2 ** attempt)  # 1s, 2s
+    else:
+        logger.error('fetch_matches request failed for %s after 3 attempts: %s', competition_code, last_exc)
         return []
 
     _inc_calls()
