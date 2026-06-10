@@ -53,6 +53,9 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/auth/callback/" element={<SocialCallback />} />
       <Route path="/tushar" element={<Portfolio />} />
+      <Route path="/rules" element={<Layout />}>
+        <Route index element={<Rules />} />
+      </Route>
       <Route
         path="/choose"
         element={
@@ -73,7 +76,6 @@ function AppRoutes() {
         <Route path="schedule" element={<Schedule />} />
         <Route path="results" element={<Results />} />
         <Route path="standings" element={<Leaderboard />} />
-        <Route path="rules" element={<Rules />} />
         <Route path="matches/:id" element={<MatchDetail />} />
         <Route path="profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" replace />} />
