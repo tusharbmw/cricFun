@@ -42,12 +42,12 @@ def calculate_scores(upto_match_id=None, tournament=None):
         enrolled = User.objects.filter(
             is_active=True,
             tournament_enrollments__tournament=tournament,
-        )
+        ).order_by('id')
     else:
         enrolled = User.objects.filter(
             is_active=True,
             tournament_enrollments__isnull=False,
-        ).distinct()
+        ).distinct().order_by('id')
 
     for u in enrolled:
         scores[u.username] = {
