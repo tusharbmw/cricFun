@@ -40,11 +40,11 @@ export function OddsBarCompact({ odds, team1Name, team2Name }) {
       </div>
       {/* Labels */}
       <div className="flex justify-between mt-1">
-        <span className="text-[10px] text-gray-400">{segments[0].label} {segments[0].pct}%</span>
+        <span className="text-[10px]" style={{ color: segments[0].textColor }}>{segments[0].label} {segments[0].pct}%</span>
         {probs.draw != null && (
-          <span className="text-[10px] text-gray-400">Draw {probs.draw}%</span>
+          <span className="text-[10px]" style={{ color: segments[1].textColor }}>Draw {probs.draw}%</span>
         )}
-        <span className="text-[10px] text-gray-400">{segments[segments.length - 1].pct}% {segments[segments.length - 1].label}</span>
+        <span className="text-[10px]" style={{ color: segments[segments.length - 1].textColor }}>{segments[segments.length - 1].pct}% {segments[segments.length - 1].label}</span>
       </div>
     </div>
   )
