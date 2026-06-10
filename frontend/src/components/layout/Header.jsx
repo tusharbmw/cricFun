@@ -67,6 +67,7 @@ const navLinks = [
 
 function NotificationDropdown({ onClose, missingCount, isUrgent }) {
   const qc = useQueryClient()
+  const { tournaments, setTournament } = useTournamentStore()
 
   const { data: notifications } = useQuery({
     queryKey: ['notifications', 'list'],
@@ -138,7 +139,14 @@ function NotificationDropdown({ onClose, missingCount, isUrgent }) {
               <div key={n.id} className={`flex items-start gap-2 px-4 py-3 group ${n.is_read ? '' : 'bg-blue-50/50'}`}>
                 <Link
                   to={url}
-                  onClick={onClose}
+                  onClick={() => {
+                    const tid = n.meta?.tournament_id
+                    if (tid) {
+                      const t = tournaments.find(t => t.id === tid)
+                      if (t) setTournament(t)
+                    }
+                    onClose()
+                  }}
                   className="flex-1 min-w-0"
                 >
                   <p className="text-sm text-gray-800 leading-snug">{n.message}</p>
