@@ -2,6 +2,7 @@ from datetime import datetime, timezone, timedelta
 from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -11,6 +12,12 @@ from .serializers import SelectionSerializer, PowerupSerializer, PowerupStatsSer
 
 # Powerup budget per season (5 of each)
 POWERUP_BUDGET = 5
+
+
+class PickHistoryPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 500
 
 
 def get_powerup_stats(user, tournament_id=None):
@@ -79,24 +86,33 @@ class SelectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def active(self, request):
-        """Selections for matches not yet completed."""
+        """Selections for matches not yet completed, optionally scoped to a tournament."""
+        tournament_id = request.query_params.get('tournament') or None
         qs = self.get_queryset().filter(
             Q(match__result='TBD') | Q(match__result='IP') |
             Q(match__result='TOSS') | Q(match__result='DLD')
         )
+        if tournament_id:
+            qs = qs.filter(match__tournament_id=tournament_id)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def history(self, request):
-        """Selections for completed matches."""
+        """Selections for completed matches, optionally scoped to a tournament.
+        Supports ?page_size= up to 500."""
+        tournament_id = request.query_params.get('tournament') or None
         qs = self.get_queryset().filter(
-            Q(match__result='team1') | Q(match__result='team2') | Q(match__result='NR')
+            Q(match__result='team1') | Q(match__result='team2') |
+            Q(match__result='draw')  | Q(match__result='NR')
         ).order_by('-match__datetime')
-        page = self.paginate_queryset(qs)
+        if tournament_id:
+            qs = qs.filter(match__tournament_id=tournament_id)
+        paginator = PickHistoryPagination()
+        page = paginator.paginate_queryset(qs, request)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            return paginator.get_paginated_response(serializer.data)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 

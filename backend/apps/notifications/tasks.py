@@ -58,7 +58,7 @@ def notify_pick_result(selection_id, match_id):
         user=sel.user,
         type='pick_result',
         message=message,
-        meta={'match_id': match_id, 'selection_id': selection_id},
+        meta={'match_id': match_id, 'selection_id': selection_id, 'tournament_id': match.tournament_id},
     )
 
     for sub in PushSubscription.objects.filter(user=sel.user):
@@ -94,7 +94,12 @@ def notify_rank_change(new_leader, match_id, prev_leader=None):
     else:
         message = f'🏆 {new_leader} is leading the standings!{tournament_suffix}'
 
-    meta  = {'new_leader': new_leader, 'prev_leader': prev_leader, 'match_id': match_id}
+    tournament_id = None
+    try:
+        tournament_id = Match.objects.get(pk=match_id).tournament_id
+    except Exception:
+        pass
+    meta  = {'new_leader': new_leader, 'prev_leader': prev_leader, 'match_id': match_id, 'tournament_id': tournament_id}
     users = list(User.objects.filter(is_active=True))
 
     Notification.objects.bulk_create([
@@ -279,7 +284,7 @@ def notify_personal_rank_changes(changes, match_id):
             user=user,
             type='rank_change',
             message=message,
-            meta={'match_id': match_id, 'old_rank': change['old_rank'], 'new_rank': change['new_rank']},
+            meta={'match_id': match_id, 'old_rank': change['old_rank'], 'new_rank': change['new_rank'], 'tournament_id': tournament_id},
         )
         for sub in PushSubscription.objects.filter(user=user):
             if send_push_notification(
@@ -326,7 +331,7 @@ def notify_tournament_over(match_id, top3_text):
     Notification.objects.bulk_create([
         Notification(
             user=u, type='rank_change', message=top3_text,
-            meta={'match_id': match_id, 'tournament_over': True},
+            meta={'match_id': match_id, 'tournament_over': True, 'tournament_id': tournament.id if tournament else None},
         )
         for u in users
     ])

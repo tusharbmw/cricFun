@@ -4,7 +4,7 @@ import useTournamentStore from '@/store/tournamentStore'
 
 export const picksAPI = {
   list:    ()           => api.get('/picks/'),
-  active:  ()           => api.get('/picks/active/'),
+  active:  (params)     => api.get('/picks/active/', { params }),
   history: (params)     => api.get('/picks/history/', { params }),
   stats:   (params)     => api.get('/picks/stats/', { params }),
   update:  (id, data)   => api.patch(`/picks/${id}/`, data),

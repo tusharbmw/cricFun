@@ -64,8 +64,9 @@ export default function Results() {
   })
 
   const { data: historyData } = useQuery({
-    queryKey: ['picks', 'history', 'all'],
-    queryFn: () => picksAPI.history({ page_size: 200 }).then(r => r.data),
+    queryKey: ['picks', 'history', tid],
+    queryFn: () => picksAPI.history({ tournament: tid, page_size: 500 }).then(r => r.data),
+    enabled: !!tid,
   })
 
   const pickMap = {}
