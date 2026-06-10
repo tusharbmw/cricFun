@@ -240,14 +240,11 @@ function BellButton({ missingCount, isUrgent, className }) {
 
 export default function Header() {
   const { user } = useAuthStore()
-  const { currentTournament } = useTournamentStore()
-  const tid = currentTournament?.id
 
   const { data: stats } = useQuery({
-    queryKey: ['picks', 'stats', tid],
-    queryFn: () => picksAPI.stats({ tournament: tid }).then(r => r.data),
+    queryKey: ['picks', 'stats', 'all'],
+    queryFn: () => picksAPI.stats().then(r => r.data),
     staleTime: 60 * 1000,
-    enabled: !!tid,
   })
 
   const missingCount = stats?.missing_picks ?? 0
