@@ -79,8 +79,19 @@ def _fetch(path, params):
         return json.loads(resp.read().decode())
 
 
+# Odds API name → our DB Team.name (for known discrepancies)
+_NAME_ALIASES = {
+    'czech republic':       'czechia',
+    'bosnia & herzegovina': 'bosnia-herzegovina',
+    'cape verde':           'cape verde islands',
+    'dr congo':             'congo dr',
+    'usa':                  'united states',
+}
+
+
 def _normalize_name(name):
-    return name.lower().strip()
+    n = name.lower().strip()
+    return _NAME_ALIASES.get(n, n)
 
 
 def _consensus_h2h(bookmakers, home_team, away_team):
