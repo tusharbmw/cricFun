@@ -140,7 +140,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
       qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
       setShowChangePick(false)
     } catch (err) {
-      setError(err.response?.data?.non_field_errors?.[0] ?? err.response?.data?.draw?.[0] ?? 'Failed to save')
+      setError(err.response?.data?.detail ?? err.response?.data?.non_field_errors?.[0] ?? err.response?.data?.draw?.[0] ?? 'Failed to save')
     } finally { setSaving(false) }
   }
 

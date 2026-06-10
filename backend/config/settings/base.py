@@ -170,6 +170,10 @@ SIMPLE_JWT = {
 
 LOGIN_URL = '/login'
 LOGIN_REDIRECT_URL = '/auth/callback/'
+# allauth 0.60+ uses its own redirect settings (override Django's LOGIN_REDIRECT_URL)
+ACCOUNT_LOGIN_REDIRECT_URL = '/auth/callback/'
+ACCOUNT_SIGNUP_REDIRECT_URL = '/auth/callback/'
+ACCOUNT_EMAIL_VERIFICATION = 'none'
 
 # Redis
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
