@@ -30,10 +30,10 @@ export default function Login() {
         <div className="flex flex-col items-center gap-3 mb-6">
           <div className="w-16 h-16 rounded-full bg-gray-900 flex items-center justify-center"
             style={{ boxShadow: '0 0 0 3px #fbbf24' }}>
-            <img src="/logo.PNG" alt="CricFun" className="w-11 h-11 object-contain rounded-full" />
+            <img src="/logo.PNG" alt="TushFun" className="w-11 h-11 object-contain rounded-full" />
           </div>
           <div className="text-center">
-            <h1 className="text-2xl font-medium text-indigo-500">CricFun</h1>
+            <h1 className="text-2xl font-medium text-indigo-500">TushFun</h1>
             <p className="text-sm text-gray-500 mt-0.5">Sign in to place your picks</p>
           </div>
         </div>

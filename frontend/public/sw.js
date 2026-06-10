@@ -1,5 +1,5 @@
 /* global clients */
-// CricFun Service Worker — handles Web Push events and notification clicks.
+// TushFun Service Worker — handles Web Push events and notification clicks.
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', event => event.waitUntil(clients.claim()))
@@ -9,7 +9,7 @@ self.addEventListener('push', event => {
   let data = {}
   try { data = event.data?.json() ?? {} } catch { /* ignore malformed payload */ }
 
-  const title   = data.title ?? 'CricFun'
+  const title   = data.title ?? 'TushFun'
   const options = {
     body:      data.body  ?? '',
     icon:      '/logo.PNG',
