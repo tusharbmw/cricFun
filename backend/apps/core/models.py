@@ -28,6 +28,10 @@ class SiteSettings(models.Model):
         default=False,
         help_text='Silence all push and in-app notifications. Safe to enable during deployments or testing.',
     )
+    odds_sync_paused = models.BooleanField(
+        default=False,
+        help_text='Pause automatic odds sync from The Odds API (runs every 6 hours).',
+    )
 
     class Meta:
         verbose_name = 'Site Settings'

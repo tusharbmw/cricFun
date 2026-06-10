@@ -8,6 +8,7 @@ import Spinner from '@/components/ui/Spinner'
 import PickDistribution from '@/components/home/PickDistribution'
 import { useCountdown } from '@/hooks/useCountdown'
 import useTournamentStore from '@/store/tournamentStore'
+import { OddsBarCompact } from '@/components/match/OddsBar'
 
 const POWERUP_META = {
   cricket: {
@@ -228,6 +229,11 @@ function MatchPickRow({ match, existingPick, stats }) {
         </div>
 
         {saveError && <div className="text-xs text-red-500 bg-red-50 rounded px-2 py-1 mb-2">{saveError}</div>}
+
+        {/* Odds bar */}
+        {match.odds && match.result === 'TBD' && (
+          <OddsBarCompact odds={match.odds} team1Name={match.team1?.name} team2Name={match.team2?.name} />
+        )}
 
         {/* Pick distribution */}
         {sel && (
