@@ -2,11 +2,14 @@ import { Navigate, Outlet } from 'react-router-dom'
 import Header from './Header'
 import BottomNav from './BottomNav'
 import useTournamentStore from '@/store/tournamentStore'
+import useAuthStore from '@/store/authStore'
 import Spinner from '@/components/ui/Spinner'
 import TournamentChooser from '@/pages/TournamentChooser'
 
 export default function Layout() {
   const { currentTournament, isLoading, chooserOpen } = useTournamentStore()
+  const user = useAuthStore(s => s.user)
+  const notEnrolled = user && (user.enrolled_tournament_ids?.length ?? 0) === 0
 
   if (isLoading) {
     return (
@@ -24,6 +27,11 @@ export default function Layout() {
     <div className="min-h-screen bg-[#f8f9fa] flex flex-col">
       <Header />
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-4 pb-20 md:pb-6">
+        {notEnrolled && (
+          <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Your account is pending approval. Contact Tushar to be added to a tournament.
+          </div>
+        )}
         <Outlet />
       </main>
       <footer className="text-center text-xs text-gray-400 py-3 pb-20 md:pb-5">
