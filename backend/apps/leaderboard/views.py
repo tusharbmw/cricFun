@@ -313,7 +313,7 @@ def take_snapshot(match_id):
     )
 
     # Refresh Redis cache (include streaks + rank changes)
-    streaks = compute_streaks()
+    streaks = compute_streaks(tournament=match.tournament)
     for e in ranked:
         e['streak'] = streaks.get(e['username'], [])
     _attach_rank_changes(ranked)
@@ -365,21 +365,23 @@ def take_snapshot(match_id):
         logger.info('take_snapshot: tournament-over notification queued for match %s', match_id)
 
 
-def compute_streaks():
+def compute_streaks(tournament=None):
     """
     Return {username: ['W','L','S','N', ...]} for each active user.
     Each entry represents one of their last 5 completed matches (oldest → newest).
-      W = picked the winner
+      W = picked the winner (or picked draw on a draw result)
       L = picked the loser
       S = skipped (no pick placed)
       N = no result / rain
     Cancelled matches are excluded — they don't count toward the 5.
+    Scoped to a specific tournament when provided.
     """
-    recent_matches = list(
-        Match.objects.filter(
-            Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR')
-        ).order_by('-datetime')[:5]
+    qs = Match.objects.filter(
+        Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR')
     )
+    if tournament:
+        qs = qs.filter(tournament=tournament)
+    recent_matches = list(qs.order_by('-datetime')[:5])
     if not recent_matches:
         return {}
 
@@ -464,7 +466,7 @@ def get_cached_leaderboard():
     ranked = cache.get(CACHE_KEY_LEADERBOARD)
     if ranked is None:
         ranked = _build_ranked_list(calculate_scores())
-        streaks = compute_streaks()
+        streaks = compute_streaks(tournament=None)
         for entry in ranked:
             entry['streak'] = streaks.get(entry['username'], [])
         _attach_rank_changes(ranked)
@@ -553,7 +555,7 @@ class LeaderboardView(APIView):
         if tournament:
             scores = calculate_scores(tournament=tournament)
             ranked = _build_ranked_list(scores)
-            streaks = compute_streaks()
+            streaks = compute_streaks(tournament=tournament)
             for entry in ranked:
                 entry['streak'] = streaks.get(entry['username'], [])
             _attach_rank_changes_scoped(ranked, tournament)
