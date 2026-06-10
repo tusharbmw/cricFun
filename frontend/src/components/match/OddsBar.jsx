@@ -25,26 +25,37 @@ export function OddsBarCompact({ odds, team1Name, team2Name }) {
   if (!probs) return null
 
   const segments = [
-    { key: 'team1', label: team1Name, pct: probs.team1, color: '#BFDBFE', textColor: '#1e3a5f' },
-    ...(probs.draw != null ? [{ key: 'draw', label: 'Draw', pct: probs.draw, color: '#FEF3C7', textColor: '#7c5005' }] : []),
-    { key: 'team2', label: team2Name, pct: probs.team2, color: '#BBF7D0', textColor: '#14532d' },
+    { key: 'team1', label: team1Name, pct: probs.team1, barColor: '#93C5FD', textColor: '#1d4ed8' },
+    ...(probs.draw != null ? [{ key: 'draw', label: 'Draw', pct: probs.draw, barColor: '#FCD34D', textColor: '#b45309' }] : []),
+    { key: 'team2', label: team2Name, pct: probs.team2, barColor: '#6EE7B7', textColor: '#047857' },
   ]
+
+  const last = segments[segments.length - 1]
 
   return (
     <div className="mt-2">
       {/* Bar */}
-      <div className="flex h-1.5 rounded-full overflow-hidden gap-px">
+      <div className="flex h-2 rounded-full overflow-hidden gap-px">
         {segments.map(s => (
-          <div key={s.key} style={{ width: `${s.pct}%`, background: s.color === '#BFDBFE' ? '#93C5FD' : s.color === '#BBF7D0' ? '#6EE7B7' : '#FCD34D' }} />
+          <div key={s.key} style={{ width: `${s.pct}%`, background: s.barColor }} />
         ))}
       </div>
       {/* Labels */}
-      <div className="flex justify-between mt-1">
-        <span className="text-[10px]" style={{ color: segments[0].textColor }}>{segments[0].label} {segments[0].pct}%</span>
+      <div className="flex justify-between mt-1.5">
+        <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: segments[0].textColor }}>
+          <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ background: segments[0].barColor }} />
+          {segments[0].label} {segments[0].pct}%
+        </span>
         {probs.draw != null && (
-          <span className="text-[10px]" style={{ color: segments[1].textColor }}>Draw {probs.draw}%</span>
+          <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: segments[1].textColor }}>
+            <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ background: segments[1].barColor }} />
+            Draw {probs.draw}%
+          </span>
         )}
-        <span className="text-[10px]" style={{ color: segments[segments.length - 1].textColor }}>{segments[segments.length - 1].pct}% {segments[segments.length - 1].label}</span>
+        <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: last.textColor }}>
+          {last.pct}% {last.label}
+          <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ background: last.barColor }} />
+        </span>
       </div>
     </div>
   )
