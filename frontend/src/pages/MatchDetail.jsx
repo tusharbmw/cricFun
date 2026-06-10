@@ -313,10 +313,10 @@ export default function MatchDetail() {
   })
 
   const { data: pickStats } = useQuery({
-    queryKey: ['picks', 'stats', 'all'],
-    queryFn: () => picksAPI.stats().then(r => r.data),
+    queryKey: ['picks', 'stats', tid],
+    queryFn: () => picksAPI.stats({ tournament: tid }).then(r => r.data),
     staleTime: 60 * 1000,
-    enabled: !!match && match.result === 'TBD',
+    enabled: !!tid && !!match && match.result === 'TBD',
   })
 
   const existingPick = activePicks?.find(p => String(p.match) === String(id)) ?? null

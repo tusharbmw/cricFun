@@ -172,7 +172,7 @@ class SelectionViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Remove the existing powerup before applying another.'}, status=400)
 
         # Check budget
-        stats = get_powerup_stats(request.user)
+        stats = get_powerup_stats(request.user, selection.match.tournament_id)
         if stats[f'{powerup_type}_count'] <= 0:
             return Response({'error': f'No {powerup_type} powerups remaining.'}, status=400)
 
