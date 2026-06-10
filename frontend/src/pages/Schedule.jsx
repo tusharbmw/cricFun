@@ -367,8 +367,9 @@ export default function Schedule() {
     return () => observer.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
   const { data: activePicks } = useQuery({
-    queryKey: ['picks', 'active'],
-    queryFn: () => picksAPI.active().then(r => r.data),
+    queryKey: ['picks', 'active', tid],
+    queryFn: () => picksAPI.active({ tournament: tid }).then(r => r.data),
+    enabled: !!tid,
   })
   const { data: stats } = useQuery({
     queryKey: ['picks', 'stats', tid],

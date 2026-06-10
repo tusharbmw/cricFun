@@ -66,13 +66,15 @@ export default function Dashboard() {
   })
 
   const { data: active } = useQuery({
-    queryKey: ['picks', 'active'],
-    queryFn: () => picksAPI.active().then(r => r.data),
+    queryKey: ['picks', 'active', tid],
+    queryFn: () => picksAPI.active({ tournament: tid }).then(r => r.data),
+    enabled: !!tid,
   })
 
   const { data: historyData } = useQuery({
-    queryKey: ['picks', 'history', 'all'],
-    queryFn: () => picksAPI.history({ page_size: 200 }).then(r => r.data),
+    queryKey: ['picks', 'history', tid],
+    queryFn: () => picksAPI.history({ tournament: tid, page_size: 500 }).then(r => r.data),
+    enabled: !!tid,
   })
 
   // Map match id → pick (active picks take priority; history fills in completed matches)

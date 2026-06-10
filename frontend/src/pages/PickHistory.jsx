@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { picksAPI } from '@/api/picks'
+import useTournamentStore from '@/store/tournamentStore'
 import Spinner from '@/components/ui/Spinner'
 
 function appliedPowerup(pick) {
@@ -13,11 +14,14 @@ function appliedPowerup(pick) {
 
 export default function PickHistory() {
   const [page, setPage] = useState(1)
+  const { currentTournament } = useTournamentStore()
+  const tid = currentTournament?.id
 
   const { data, isLoading } = useQuery({
-    queryKey: ['picks', 'history', page],
-    queryFn: () => picksAPI.history({ page }).then(r => r.data),
+    queryKey: ['picks', 'history', tid, page],
+    queryFn: () => picksAPI.history({ tournament: tid, page }).then(r => r.data),
     keepPreviousData: true,
+    enabled: !!tid,
   })
 
   const picks = data?.results ?? []
