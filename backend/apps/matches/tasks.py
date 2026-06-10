@@ -495,3 +495,26 @@ def _decide_match_weight(description: str) -> int:
 
 def _is_playoff(description: str) -> bool:
     return _decide_match_weight(description) > 1
+
+
+@shared_task
+def sync_match_odds():
+    """
+    Fetch pre-match odds from The Odds API and store in Match.odds.
+    Runs every 6 hours via Beat. Skips if odds_sync_paused or no key configured.
+    3 markets × 1 region = 3 credits per run → ~360 credits/month at 4×/day.
+    """
+    from django.conf import settings
+    from apps.core.models import SiteSettings
+
+    if not getattr(settings, 'SPORTS_ODDS_API_KEY', ''):
+        logger.info('sync_match_odds: SPORTS_ODDS_API_KEY not configured, skipping')
+        return 'no api key'
+
+    if SiteSettings.get().odds_sync_paused:
+        logger.info('sync_match_odds: odds sync paused (SiteSettings), skipping')
+        return 'paused'
+
+    from apps.matches.oddsapi import fetch_and_store_odds
+    result = fetch_and_store_odds()
+    return result

@@ -14,6 +14,7 @@ def _get_panel_context():
     """Build the context dict injected into the SiteSettings admin views."""
     from apps.core.cricapi import get_hits_status
     from apps.matches.tasks import CACHE_KEY_NEXT_CHECK
+    from apps.matches.oddsapi import CACHE_KEY_CREDITS_REMAINING, CACHE_KEY_CREDITS_USED, CACHE_KEY_LAST_SYNC
 
     api_hits            = get_hits_status()
     settings            = SiteSettings.get()
@@ -41,23 +42,58 @@ def _get_panel_context():
     football_calls_today = _cache.get('football_api_calls_today', 0)
     notifications_paused = settings.notifications_paused
 
+    # Odds API info
+    odds_credits_remaining = cache.get(CACHE_KEY_CREDITS_REMAINING)  # None if never run
+    odds_credits_used = cache.get(CACHE_KEY_CREDITS_USED)
+    odds_last_sync_raw = cache.get(CACHE_KEY_LAST_SYNC)
+    if odds_last_sync_raw:
+        try:
+            odds_last_sync = datetime.fromisoformat(odds_last_sync_raw)
+        except ValueError:
+            odds_last_sync = None
+    else:
+        odds_last_sync = None
+
+    # Next odds sync: crontab(hour='0,6,12,18', minute=30) UTC
+    sync_hours = [0, 6, 12, 18]
+    next_odds_sync = None
+    for h in sync_hours:
+        candidate = now.replace(hour=h, minute=30, second=0, microsecond=0)
+        if candidate <= now:
+            candidate += timedelta(days=1) if h == 18 else timedelta()
+            if candidate <= now:
+                continue
+        if next_odds_sync is None or candidate < next_odds_sync:
+            next_odds_sync = candidate
+    if next_odds_sync is None:
+        next_odds_sync = now.replace(hour=0, minute=30, second=0, microsecond=0) + timedelta(days=1)
+    next_odds_sync_in = max(0, int((next_odds_sync - now).total_seconds()))
+
     return {
-        'api_hits':             api_hits,
-        'cricket_api_paused':   cricket_api_paused,
-        'football_api_paused':  football_api_paused,
-        'football_calls_today': football_calls_today,
-        'notifications_paused': notifications_paused,
-        'next_live_check':      next_live_check,
-        'next_live_check_in':   next_live_check_in,
-        'next_fetch':           next_fetch,
-        'next_fetch_in_h':      next_fetch_in // 3600,
-        'next_fetch_in_m':      (next_fetch_in % 3600) // 60,
+        'api_hits':               api_hits,
+        'cricket_api_paused':     cricket_api_paused,
+        'football_api_paused':    football_api_paused,
+        'football_calls_today':   football_calls_today,
+        'notifications_paused':   notifications_paused,
+        'next_live_check':        next_live_check,
+        'next_live_check_in':     next_live_check_in,
+        'next_fetch':             next_fetch,
+        'next_fetch_in_h':        next_fetch_in // 3600,
+        'next_fetch_in_m':        (next_fetch_in % 3600) // 60,
+        'odds_sync_paused':       settings.odds_sync_paused,
+        'odds_credits_remaining': odds_credits_remaining,
+        'odds_credits_used':      odds_credits_used,
+        'odds_last_sync':         odds_last_sync,
+        'odds_monthly_limit':     500,
+        'next_odds_sync':         next_odds_sync,
+        'next_odds_sync_in_h':    next_odds_sync_in // 3600,
+        'next_odds_sync_in_m':    (next_odds_sync_in % 3600) // 60,
     }
 
 
 @admin.register(SiteSettings)
 class SiteSettingsAdmin(admin.ModelAdmin):
-    fields = ['tournament_id', 'pick_window_days', 'cricket_api_paused', 'football_api_paused', 'notifications_paused']
+    fields = ['tournament_id', 'pick_window_days', 'cricket_api_paused', 'football_api_paused', 'notifications_paused', 'odds_sync_paused']
     change_form_template = 'admin/core/sitesettings/change_form.html'
 
     def has_add_permission(self, request):
@@ -127,6 +163,16 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 'fetch-soccer-matches/',
                 self.admin_site.admin_view(self.fetch_soccer_matches_view),
                 name='sitesettings_fetch_soccer_matches',
+            ),
+            path(
+                'sync-odds/',
+                self.admin_site.admin_view(self.sync_odds_view),
+                name='sitesettings_sync_odds',
+            ),
+            path(
+                'toggle-odds-sync-pause/',
+                self.admin_site.admin_view(self.toggle_odds_sync_pause_view),
+                name='sitesettings_toggle_odds_sync_pause',
             ),
         ]
         return custom + urls
@@ -302,6 +348,27 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         settings.save()
         state = 'PAUSED' if settings.notifications_paused else 'RESUMED'
         messages.success(request, f'Notifications {state}.')
+        return redirect(self._settings_change_url(request))
+
+    def sync_odds_view(self, request):
+        if request.method != 'POST':
+            return redirect(self._settings_change_url(request))
+        from apps.matches.oddsapi import fetch_and_store_odds
+        try:
+            result = fetch_and_store_odds()
+            messages.success(request, f'Odds sync complete — updated: {result["updated"]}, skipped: {result["skipped"]}')
+        except Exception as exc:
+            messages.error(request, f'Odds sync failed: {exc}')
+        return redirect(self._settings_change_url(request))
+
+    def toggle_odds_sync_pause_view(self, request):
+        if request.method != 'POST':
+            return redirect(self._settings_change_url(request))
+        settings = SiteSettings.get()
+        settings.odds_sync_paused = not settings.odds_sync_paused
+        settings.save()
+        state = 'PAUSED' if settings.odds_sync_paused else 'RESUMED'
+        messages.success(request, f'Odds auto-sync {state}.')
         return redirect(self._settings_change_url(request))
 
     # ------------------------------------------------------------------

@@ -214,6 +214,10 @@ CRICKET_API_DAILY_LIMIT = int(os.environ.get('CRICKET_API_DAILY_LIMIT', '100'))
 # Football API (football-data.org)
 FOOTBALL_DATA_API_KEY = os.environ.get('FOOTBALL_DATA_API_KEY', '')
 
+# The Odds API (the-odds-api.com)
+SPORTS_ODDS_API_KEY = os.environ.get('SPORTS_ODDS_API_KEY', '')
+SPORTS_ODDS_MONTHLY_LIMIT = 500
+
 # drf-spectacular (API docs)
 SPECTACULAR_SETTINGS = {
     'TITLE': 'CricFun API',

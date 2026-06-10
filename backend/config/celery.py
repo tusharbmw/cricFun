@@ -73,4 +73,11 @@ app.conf.beat_schedule = {
         'task': 'apps.matches.tasks.sync_football_scores',
         'schedule': 60.0,
     },
+
+    # Sync match odds from The Odds API every 6 hours.
+    # 3 markets × 1 region = 3 credits/run → ~360 credits/month.
+    'sync-match-odds': {
+        'task': 'apps.matches.tasks.sync_match_odds',
+        'schedule': crontab(hour='0,6,12,18', minute=30),
+    },
 }

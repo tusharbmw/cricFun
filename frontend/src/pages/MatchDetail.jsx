@@ -1,10 +1,14 @@
 import { useParams } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { matchesAPI } from '@/api/matches'
+import { picksAPI } from '@/api/picks'
 import Spinner from '@/components/ui/Spinner'
 import { matchStatusBadge } from '@/components/ui/Badge'
+import { OddsCardFull } from '@/components/match/OddsBar'
+import useTournamentStore from '@/store/tournamentStore'
+import { useCountdown } from '@/hooks/useCountdown'
 
 const POWERUP_META = {
   cricket: {
@@ -17,6 +21,195 @@ const POWERUP_META = {
     fake:        { emoji: '🪄', label: 'Dummy' },
     no_negative: { emoji: '🧤', label: 'Clean Sheet' },
   },
+}
+
+function MatchDetailPicker({ match, existingPick, pickStats, PM, onPickChange }) {
+  const [selected, setSelected] = useState(
+    existingPick?.draw ? 'draw' : (existingPick?.selection ?? null)
+  )
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [showChange, setShowChange] = useState(false)
+  const [powerupLoading, setPowerupLoading] = useState(null)
+
+  useEffect(() => {
+    setSelected(existingPick?.draw ? 'draw' : (existingPick?.selection ?? null))
+  }, [existingPick])
+
+  const now = Date.now()
+  const dt = new Date(match.datetime)
+  const pickWindowMs = (pickStats?.pick_window_days ?? 5) * 24 * 60 * 60 * 1000
+  const isBeyondWindow = dt.getTime() - now > pickWindowMs
+  const isLive = match.result === 'IP' || match.result === 'TOSS'
+  const teamsConfirmed = !!(match.team1?.name && match.team1.name !== 'TBD' && match.team2?.name && match.team2.name !== 'TBD')
+  const isLocked = match.result !== 'TBD' || isBeyondWindow || isLive || !teamsConfirmed
+  const isUrgent = !isLocked && dt.getTime() - now < 24 * 3600 * 1000
+
+  const hasPick = selected !== null
+  const drawSelected = selected === 'draw'
+  const t1Selected = selected === match.team1?.id
+  const hasPowerup = existingPick?.hidden || existingPick?.fake || existingPick?.no_negative
+  const appliedPowerup = existingPick?.hidden ? 'hidden' : existingPick?.fake ? 'fake' : existingPick?.no_negative ? 'no_negative' : null
+  const powerupsDisabled = match.playoff
+  const countdown = useCountdown(match.datetime)
+
+  const showPickButtons = !isLocked && (!hasPick || showChange)
+
+  async function handleSelect(teamIdOrDraw) {
+    if (isLocked || teamIdOrDraw === selected) return
+    const isDraw = teamIdOrDraw === 'draw'
+    const prev = selected
+    setSelected(teamIdOrDraw)
+    setSaving(true)
+    setSaveError('')
+    try {
+      if (!existingPick) {
+        await picksAPI.place(isDraw ? { match: match.id, draw: true } : { match: match.id, selection: teamIdOrDraw })
+      } else {
+        await picksAPI.update(existingPick.id, isDraw ? { draw: true } : { draw: false, selection: teamIdOrDraw })
+      }
+      setShowChange(false)
+      onPickChange()
+    } catch (err) {
+      setSaveError(err.response?.data?.detail ?? err.response?.data?.non_field_errors?.[0] ?? 'Failed to save')
+      setSelected(prev)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRemove() {
+    if (hasPowerup || isLocked || !existingPick) return
+    const prev = selected
+    setSelected(null)
+    setSaving(true)
+    setSaveError('')
+    try {
+      await picksAPI.remove(existingPick.id)
+      setShowChange(false)
+      onPickChange()
+    } catch (err) {
+      setSaveError(err.response?.data?.error ?? 'Failed to remove')
+      setSelected(prev)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handlePowerup(type) {
+    if (!existingPick) return
+    setPowerupLoading(type)
+    setSaveError('')
+    try {
+      await picksAPI.applyPowerup(existingPick.id, type)
+      onPickChange()
+    } catch (err) {
+      setSaveError(err.response?.data?.error ?? 'Failed to apply powerup')
+    } finally {
+      setPowerupLoading(null)
+    }
+  }
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-gray-600">Your Pick</h2>
+          {saving && <span className="loading loading-spinner loading-xs text-primary" />}
+        </div>
+
+        {isBeyondWindow && (
+          <p className="text-sm text-gray-400 italic">Pick window opens within {pickStats?.pick_window_days ?? 5} days of match.</p>
+        )}
+        {isLive && (
+          <p className="text-sm text-gray-400 italic">Match in progress — picks are locked.</p>
+        )}
+        {!teamsConfirmed && (
+          <p className="text-sm text-gray-400 italic">Teams not yet confirmed.</p>
+        )}
+
+        {hasPick && !showChange && (
+          <div className="text-sm font-medium text-green-700 bg-green-50 rounded-lg px-3 py-2 mb-3">
+            ✓ You picked {drawSelected ? '⚖ Draw' : t1Selected ? match.team1?.name : match.team2?.name}
+            {appliedPowerup && ` · ${PM[appliedPowerup]?.emoji} ${PM[appliedPowerup]?.label}`}
+          </div>
+        )}
+        {isUrgent && !hasPick && !isLocked && countdown && (
+          <p className="text-xs text-amber-600 mb-2">⏱ {countdown} until lock</p>
+        )}
+
+        {saveError && <div className="text-xs text-red-500 bg-red-50 rounded px-2 py-1 mb-2">{saveError}</div>}
+
+        {showPickButtons && (
+          <div className="flex gap-2">
+            <button onClick={() => handleSelect(match.team1?.id)} disabled={saving}
+              className="flex-1 py-2.5 rounded-lg text-sm font-medium"
+              style={{ background: '#E6F1FB', color: '#0C447C' }}>
+              {saving ? '…' : `Pick ${match.team1?.name}`}
+            </button>
+            {match.allows_draw && (
+              <button onClick={() => handleSelect('draw')} disabled={saving}
+                className="py-2.5 px-3 rounded-lg text-sm font-medium border-2 border-dashed shrink-0"
+                style={{ borderColor: '#C49A36', color: '#7A5A1A', background: drawSelected ? '#EFD89A' : '#FBF5E6' }}>
+                {saving ? '…' : '⚖ Draw'}
+              </button>
+            )}
+            <button onClick={() => handleSelect(match.team2?.id)} disabled={saving}
+              className="flex-1 py-2.5 rounded-lg text-sm font-medium"
+              style={{ background: '#EAF3DE', color: '#27500A' }}>
+              {saving ? '…' : `Pick ${match.team2?.name}`}
+            </button>
+          </div>
+        )}
+
+        {showChange && (
+          <div className="flex gap-2 mt-2">
+            {!hasPowerup && (
+              <button onClick={handleRemove} disabled={saving}
+                className="flex-1 py-2 rounded-lg text-sm text-red-500 border border-red-200 bg-red-50">
+                Skip / Remove
+              </button>
+            )}
+            <button onClick={() => setShowChange(false)}
+              className="px-4 py-2 rounded-lg text-sm text-gray-500 border border-gray-200">
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {hasPick && !showChange && !isLocked && (
+          <button onClick={() => setShowChange(true)}
+            className="w-full mt-3 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700">
+            Change pick
+          </button>
+        )}
+
+        {existingPick && !powerupsDisabled && !isLocked && !showChange && (
+          <div className="flex gap-2 flex-wrap mt-3">
+            {Object.entries(PM).map(([type, { emoji, label, key }]) => {
+              const available = (pickStats?.[key] ?? 0) > 0
+              const isActive = appliedPowerup === type
+              const otherApplied = !!appliedPowerup && !isActive
+              return (
+                <button key={type}
+                  onClick={() => handlePowerup(type)}
+                  disabled={(!available && !isActive) || otherApplied || powerupLoading !== null}
+                  className="flex-1 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-40"
+                  style={isActive
+                    ? { background: '#EEEDFE', color: '#3C3489', borderColor: '#AFA9EC' }
+                    : { background: 'transparent', color: '#6b7280', borderColor: '#e5e7eb' }
+                  }>
+                  {powerupLoading === type
+                    ? <span className="loading loading-spinner loading-xs" />
+                    : `${emoji} ${label}${isActive ? ' ✓' : ''}`}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function FormBadge({ result, opponent, isOpen, onToggle, isRecent }) {
@@ -85,6 +278,9 @@ function FormRow({ entries }) {
 
 export default function MatchDetail() {
   const { id } = useParams()
+  const qc = useQueryClient()
+  const { currentTournament } = useTournamentStore()
+  const tid = currentTournament?.id
 
   const { data: match, isLoading } = useQuery({
     queryKey: ['match', id],
@@ -108,6 +304,22 @@ export default function MatchDetail() {
     enabled: !!match && !isSoccer,
     staleTime: 10 * 60 * 1000,
   })
+
+  const { data: activePicks } = useQuery({
+    queryKey: ['picks', 'active', tid],
+    queryFn: () => picksAPI.active({ tournament: tid }).then(r => r.data),
+    enabled: !!tid && !!match && match.result === 'TBD',
+    staleTime: 30 * 1000,
+  })
+
+  const { data: pickStats } = useQuery({
+    queryKey: ['picks', 'stats', 'all'],
+    queryFn: () => picksAPI.stats().then(r => r.data),
+    staleTime: 60 * 1000,
+    enabled: !!match && match.result === 'TBD',
+  })
+
+  const existingPick = activePicks?.find(p => String(p.match) === String(id)) ?? null
 
   if (isLoading) return <Spinner />
   if (!match) return <p className="text-gray-500 text-center py-10">Match not found.</p>
@@ -158,6 +370,29 @@ export default function MatchDetail() {
           </div>
         </div>
       </div>
+
+      {/* Pre-Match Odds */}
+      {match.odds && match.result === 'TBD' && (
+        <OddsCardFull
+          odds={match.odds}
+          team1Name={match.team1?.name}
+          team2Name={match.team2?.name}
+        />
+      )}
+
+      {/* Pick section — only for TBD matches */}
+      {match.result === 'TBD' && tid && (
+        <MatchDetailPicker
+          match={match}
+          existingPick={existingPick}
+          pickStats={pickStats}
+          PM={PM}
+          onPickChange={() => {
+            qc.invalidateQueries({ queryKey: ['picks', 'active', tid] })
+            qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
+          }}
+        />
+      )}
 
       {sel && (
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm">

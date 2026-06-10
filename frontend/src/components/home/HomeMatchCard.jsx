@@ -6,6 +6,7 @@ import { matchesAPI } from '@/api/matches'
 import { picksAPI } from '@/api/picks'
 import PickDistribution from './PickDistribution'
 import { useCountdown } from '@/hooks/useCountdown'
+import { OddsBarCompact } from '@/components/match/OddsBar'
 
 const POWERUP_META = {
   cricket: {
@@ -60,7 +61,6 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   const [error, setError] = useState('')
   const [showChangePick, setShowChangePick] = useState(false)
 
-  // eslint-disable-next-line react-hooks/purity
   const now = Date.now()
   const dt = new Date(match.datetime)
   const countdown = useCountdown(match.datetime)
@@ -325,6 +325,11 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
         </div>
 
         {error && <div className="text-xs text-red-500 bg-red-50 rounded px-2 py-1 mb-2">{error}</div>}
+
+        {/* Odds bar */}
+        {match.odds && match.result === 'TBD' && (
+          <OddsBarCompact odds={match.odds} team1Name={match.team1?.name} team2Name={match.team2?.name} />
+        )}
 
         {/* Pick distribution */}
         {sel && (
