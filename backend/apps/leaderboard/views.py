@@ -168,20 +168,18 @@ def _tie_key(entry):
             entry['matches_won'], entry['powerups_used'])
 
 
-def _head_to_head(username_a, username_b):
+def _head_to_head(username_a, username_b, tournament=None):
     """
     Return (a_wins, b_wins) from completed matches where A and B picked
     opposite sides.  Single query — safe to call only for 2-player ties.
     """
-    from django.db.models import Q as _Q
-    sels = (
-        Selection.objects
-        .filter(
-            user__username__in=[username_a, username_b],
-            match__result__in=['team1', 'team2'],
-        )
-        .select_related('match__team1', 'match__team2', 'selection', 'user')
+    qs = Selection.objects.filter(
+        user__username__in=[username_a, username_b],
+        match__result__in=['team1', 'team2'],
     )
+    if tournament is not None:
+        qs = qs.filter(match__tournament=tournament)
+    sels = qs.select_related('match__team1', 'match__team2', 'selection', 'user')
     by_match = {}
     for s in sels:
         by_match.setdefault(s.match_id, {})[s.user.username] = s
@@ -201,7 +199,7 @@ def _head_to_head(username_a, username_b):
     return a_wins, b_wins
 
 
-def _build_ranked_list(scores):
+def _build_ranked_list(scores, tournament=None):
     """
     Sort scores into a ranked list applying the full tiebreaker chain:
       Primary : highest total
@@ -235,7 +233,7 @@ def _build_ranked_list(scores):
             j += 1
         if j - i == 2:
             a, b = ranked[i], ranked[i + 1]
-            a_wins, b_wins = _head_to_head(a['username'], b['username'])
+            a_wins, b_wins = _head_to_head(a['username'], b['username'], tournament=tournament)
             if b_wins > a_wins:
                 ranked[i], ranked[i + 1] = ranked[i + 1], ranked[i]
             if a_wins == b_wins:
@@ -277,7 +275,7 @@ def take_snapshot(match_id):
 
     tournament = match.tournament
     scores = calculate_scores(tournament=tournament)
-    ranked = _build_ranked_list(scores)
+    ranked = _build_ranked_list(scores, tournament=tournament)
 
     snapshot_data = [
         {k: e[k] for k in (
@@ -553,7 +551,7 @@ class LeaderboardView(APIView):
 
         if tournament:
             scores = calculate_scores(tournament=tournament)
-            ranked = _build_ranked_list(scores)
+            ranked = _build_ranked_list(scores, tournament=tournament)
             streaks = compute_streaks(tournament=tournament)
             for entry in ranked:
                 entry['streak'] = streaks.get(entry['username'], [])
@@ -595,7 +593,7 @@ class MyRankView(APIView):
 
         if tournament:
             scores = calculate_scores(tournament=tournament)
-            ranked = _build_ranked_list(scores)
+            ranked = _build_ranked_list(scores, tournament=tournament)
         else:
             ranked = get_cached_leaderboard()
 
