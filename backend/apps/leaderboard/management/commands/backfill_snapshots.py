@@ -33,7 +33,7 @@ class Command(BaseCommand):
         completed = list(
             Match.objects.filter(
                 Q(result='team1') | Q(result='team2') | Q(result='NR')
-            ).order_by('datetime')
+            ).select_related('tournament').order_by('datetime')
         )
 
         if not options['force']:
@@ -52,8 +52,9 @@ class Command(BaseCommand):
         self.stdout.write(f'Backfilling {total} match snapshot(s)...')
 
         for i, match in enumerate(to_fill, 1):
-            scores = calculate_scores(upto_match_id=match.id)
-            ranked = _build_ranked_list(scores)
+            tournament = match.tournament
+            scores = calculate_scores(upto_match_id=match.id, tournament=tournament)
+            ranked = _build_ranked_list(scores, tournament=tournament)
             snapshot_data = [
                 {k: e[k] for k in (
                     'rank', 'username', 'user_id', 'total',
@@ -67,9 +68,8 @@ class Command(BaseCommand):
             )
             self.stdout.write(f'  [{i}/{total}] {match}')
 
-        # Refresh Redis cache with the final (current) state
-        final = _build_ranked_list(calculate_scores())
-        cache.set(CACHE_KEY_LEADERBOARD, final, timeout=CACHE_TTL)
+        # Redis cache is rebuilt on the next leaderboard request — just clear it
+        cache.delete(CACHE_KEY_LEADERBOARD)
 
         self.stdout.write(self.style.SUCCESS(
             f'Done. {total} snapshot(s) created/updated. Redis cache refreshed.'

@@ -233,14 +233,15 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         completed = list(
             Match.objects.filter(
                 Q(result='team1') | Q(result='team2') | Q(result='NR')
-            ).order_by('datetime')
+            ).select_related('tournament').order_by('datetime')
         )
         existing_ids = set(LeaderboardSnapshot.objects.values_list('match_id', flat=True))
         to_fill = [m for m in completed if m.id not in existing_ids]
 
         for match in to_fill:
-            scores        = calculate_scores(upto_match_id=match.id)
-            ranked        = _build_ranked_list(scores)
+            tournament    = match.tournament
+            scores        = calculate_scores(upto_match_id=match.id, tournament=tournament)
+            ranked        = _build_ranked_list(scores, tournament=tournament)
             snapshot_data = [
                 {k: e[k] for k in (
                     'rank', 'username', 'user_id', 'total',
@@ -252,13 +253,11 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 match=match, defaults={'rankings': snapshot_data}
             )
 
-        # Refresh Redis cache
-        final = _build_ranked_list(calculate_scores())
-        django_cache.set(CACHE_KEY_LEADERBOARD, final, timeout=CACHE_TTL)
+        django_cache.delete(CACHE_KEY_LEADERBOARD)
 
         messages.success(
             request,
-            f'Backfilled {len(to_fill)} snapshot(s). Redis cache refreshed.'
+            f'Backfilled {len(to_fill)} snapshot(s). Cache cleared.'
         )
         return redirect(self._settings_change_url(request))
 
@@ -280,13 +279,14 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         completed = list(
             Match.objects.filter(
                 Q(result='team1') | Q(result='team2') | Q(result='NR')
-            ).order_by('datetime')
+            ).select_related('tournament').order_by('datetime')
         )
 
         # Force-regenerate every snapshot regardless of whether it exists
         for match in completed:
-            scores        = calculate_scores(upto_match_id=match.id)
-            ranked        = _build_ranked_list(scores)
+            tournament    = match.tournament
+            scores        = calculate_scores(upto_match_id=match.id, tournament=tournament)
+            ranked        = _build_ranked_list(scores, tournament=tournament)
             snapshot_data = [
                 {k: e[k] for k in (
                     'rank', 'username', 'user_id', 'total',
@@ -298,13 +298,11 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 match=match, defaults={'rankings': snapshot_data}
             )
 
-        # Refresh Redis cache with the full current standings
-        final = _build_ranked_list(calculate_scores())
-        django_cache.set(CACHE_KEY_LEADERBOARD, final, timeout=CACHE_TTL)
+        django_cache.delete(CACHE_KEY_LEADERBOARD)
 
         messages.success(
             request,
-            f'Recalculated {len(completed)} snapshot(s) from scratch. Redis cache refreshed.'
+            f'Recalculated {len(completed)} snapshot(s) from scratch. Cache cleared.'
         )
         return redirect(self._settings_change_url(request))
 
