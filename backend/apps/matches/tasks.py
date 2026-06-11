@@ -393,17 +393,25 @@ def sync_football_scores():
 
                 score = m.get('score') or {}
                 full_time = score.get('fullTime') or {}
-                new_result   = map_status(m.get('status', ''), score.get('winner'))
+                api_status   = m.get('status', '')
+                new_result   = map_status(api_status, score.get('winner'))
                 new_home     = full_time.get('home')
                 new_away     = full_time.get('away')
                 new_duration = map_duration(score.get('duration'))
+                new_minute   = m.get('minute')
+                injury_time  = m.get('injuryTime') or 0
+                new_status_text = _build_soccer_status(
+                    api_status, new_minute, injury_time, new_duration,
+                )
 
                 changed = []
                 for field, val in [
-                    ('result',   new_result),
-                    ('home_score', new_home),
-                    ('away_score', new_away),
-                    ('duration',  new_duration),
+                    ('result',      new_result),
+                    ('home_score',  new_home),
+                    ('away_score',  new_away),
+                    ('minute',      new_minute),
+                    ('duration',    new_duration),
+                    ('status_text', new_status_text),
                 ]:
                     if getattr(match, field) != val:
                         setattr(match, field, val)
@@ -477,6 +485,22 @@ def update_tournament_state(tournament):
         tournament.state = state
         tournament.save(update_fields=['state'])
         logger.info('Tournament state updated: %s → %s', tournament.name, state)
+
+
+def _build_soccer_status(api_status: str, minute: int | None, injury_time: int, duration: str | None) -> str:
+    """Build a compact live status string for soccer matches (time-only, no score)."""
+    if api_status == 'PAUSED':
+        return 'HT'
+    if api_status in ('IN_PLAY',):
+        if duration == 'PENALTY_SHOOTOUT':
+            return 'Pens'
+        if minute is None:
+            return 'Live'
+        time_str = f"{minute}+{injury_time}'" if injury_time > 0 else f"{minute}'"
+        if duration == 'EXTRA_TIME':
+            return f'ET {time_str}'
+        return time_str
+    return ''
 
 
 def _decide_match_weight(description: str) -> int:

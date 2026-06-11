@@ -41,7 +41,7 @@ class MatchSerializer(serializers.ModelSerializer):
             'description', 'venue', 'result', 'result_display',
             'datetime', 'match_id', 'match_points', 'playoff',
             'scores', 'status_text',
-            'home_score', 'away_score', 'duration', 'odds',
+            'home_score', 'away_score', 'minute', 'duration', 'odds',
             'allows_draw',
             'is_live', 'is_completed', 'created_at', 'updated_at',
         ]

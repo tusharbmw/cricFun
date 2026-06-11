@@ -34,11 +34,12 @@ app.conf.beat_schedule = {
         'schedule': crontab(hour=6, minute=0),
     },
 
-    # Pre-match check every 10 minutes — transitions TBD→IP when time is past.
-    # No API call; purely a DB status update.
+    # Pre-match check on clock boundaries — transitions TBD→IP when time is past.
+    # No API call; purely a DB status update. Pinned to :00/:10/:20/:30/:40/:50
+    # so a match starting at e.g. 14:00 is guaranteed caught in that same tick.
     'pre-match-status-update': {
         'task': 'apps.matches.tasks.update_match_statuses',
-        'schedule': 600.0,
+        'schedule': crontab(minute='0,10,20,30,40,50'),
     },
 
     # Daily housekeeping at 2 AM
