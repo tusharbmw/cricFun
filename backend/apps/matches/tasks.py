@@ -48,8 +48,9 @@ def update_live_scores(self):
     # ── 1. Are any matches live? ──────────────────────────────────────────────
     live_matches = list(
         Match.objects.filter(
-            Q(result='IP') | Q(result='TOSS')
-        ).select_related('team1', 'team2')
+            Q(result='IP') | Q(result='TOSS'),
+            tournament__sport=Tournament.Sport.CRICKET,
+        ).select_related('team1', 'team2', 'tournament')
     )
 
     if not live_matches:
