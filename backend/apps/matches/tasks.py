@@ -381,7 +381,8 @@ def sync_football_scores():
             summary.append(f'{tournament.name}: no imminent matches')
             continue
 
-        raw = fetch_matches(tournament.external_id, status='LIVE,IN_PLAY,PAUSED,FINISHED')
+        date_from = (now - _td(days=1)).strftime('%Y-%m-%d')
+        raw = fetch_matches(tournament.external_id, status='IN_PLAY,PAUSED,FINISHED', dateFrom=date_from)
         if not raw:
             summary.append(f'{tournament.name}: no data')
             continue

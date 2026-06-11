@@ -275,7 +275,8 @@ def take_snapshot(match_id):
         logger.error('take_snapshot: match %s not found', match_id)
         return
 
-    scores = calculate_scores()
+    tournament = match.tournament
+    scores = calculate_scores(tournament=tournament)
     ranked = _build_ranked_list(scores)
 
     snapshot_data = [
@@ -293,14 +294,12 @@ def take_snapshot(match_id):
     prev_leader = None
     try:
         existing = LeaderboardSnapshot.objects.get(match=match)
-        # Snapshot exists — use its current leader as the "before" baseline
         if existing.rankings:
             prev_leader = existing.rankings[0]['username']
     except LeaderboardSnapshot.DoesNotExist:
-        # First time for this match — fall back to the previous match's snapshot
         try:
             prev = (LeaderboardSnapshot.objects
-                    .filter(match__datetime__lt=match.datetime)
+                    .filter(match__tournament=tournament, match__datetime__lt=match.datetime)
                     .latest('match__datetime'))
             if prev.rankings:
                 prev_leader = prev.rankings[0]['username']
@@ -312,11 +311,11 @@ def take_snapshot(match_id):
         defaults={'rankings': snapshot_data},
     )
 
-    # Refresh Redis cache (include streaks + rank changes)
-    streaks = compute_streaks(tournament=match.tournament)
+    # Attach rank changes and streaks (tournament-scoped)
+    streaks = compute_streaks(tournament=tournament)
     for e in ranked:
         e['streak'] = streaks.get(e['username'], [])
-    _attach_rank_changes(ranked)
+    _attach_rank_changes_scoped(ranked, tournament)
     cache.set(CACHE_KEY_LEADERBOARD, ranked, timeout=CACHE_TTL)
     logger.info('take_snapshot: saved snapshot + cache refreshed for match %s', match_id)
 
