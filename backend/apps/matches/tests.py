@@ -36,16 +36,19 @@ def test_map_status_finished_draw():
     assert map_status('FINISHED', 'DRAW') == 'draw'
 
 def test_map_status_finished_no_winner():
-    assert map_status('FINISHED', None) == 'NR'
+    assert map_status('FINISHED', None) is None  # API still processing — skip
+
+def test_map_status_awarded_home():
+    assert map_status('AWARDED', 'HOME_TEAM') == 'team1'
 
 def test_map_status_postponed():
-    assert map_status('POSTPONED', None) == 'NR'
+    assert map_status('POSTPONED', None) == 'DLD'
 
 def test_map_status_cancelled():
     assert map_status('CANCELLED', None) == 'NR'
 
 def test_map_status_suspended():
-    assert map_status('SUSPENDED', None) == 'NR'
+    assert map_status('SUSPENDED', None) == 'IP'  # mid-game halt, still live
 
 
 # ---------------------------------------------------------------------------

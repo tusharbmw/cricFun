@@ -48,8 +48,9 @@ def update_live_scores(self):
     # ── 1. Are any matches live? ──────────────────────────────────────────────
     live_matches = list(
         Match.objects.filter(
-            Q(result='IP') | Q(result='TOSS')
-        ).select_related('team1', 'team2')
+            Q(result='IP') | Q(result='TOSS'),
+            tournament__sport=Tournament.Sport.CRICKET,
+        ).select_related('team1', 'team2', 'tournament')
     )
 
     if not live_matches:
@@ -328,6 +329,8 @@ def fetch_football_matches(tournament_id=None):
                 if was_created:
                     created += 1
                 else:
+                    if obj.result != 'TBD':
+                        continue  # live/completed matches are owned by sync_football_scores
                     changed = [k for k, v in fields.items() if getattr(obj, k) != v]
                     if changed:
                         for k in changed:
@@ -378,7 +381,8 @@ def sync_football_scores():
             summary.append(f'{tournament.name}: no imminent matches')
             continue
 
-        raw = fetch_matches(tournament.external_id, status='LIVE,IN_PLAY,PAUSED,FINISHED')
+        date_from = (now - _td(days=1)).strftime('%Y-%m-%d')
+        raw = fetch_matches(tournament.external_id, status='IN_PLAY,PAUSED,FINISHED', dateFrom=date_from)
         if not raw:
             summary.append(f'{tournament.name}: no data')
             continue
@@ -395,6 +399,8 @@ def sync_football_scores():
                 full_time = score.get('fullTime') or {}
                 api_status   = m.get('status', '')
                 new_result   = map_status(api_status, score.get('winner'))
+                if new_result is None:
+                    continue  # FINISHED with null winner — API still processing
                 new_home     = full_time.get('home')
                 new_away     = full_time.get('away')
                 new_duration = map_duration(score.get('duration'))
@@ -405,6 +411,7 @@ def sync_football_scores():
                 )
 
                 changed = []
+                diffs = []
                 for field, val in [
                     ('result',      new_result),
                     ('home_score',  new_home),
@@ -413,14 +420,20 @@ def sync_football_scores():
                     ('duration',    new_duration),
                     ('status_text', new_status_text),
                 ]:
-                    if getattr(match, field) != val:
+                    old = getattr(match, field)
+                    if field in ('home_score', 'away_score') and val is None and old is not None:
+                        continue  # never wipe a score we already have
+                    if old != val:
                         setattr(match, field, val)
                         changed.append(field)
+                        diffs.append(f'{field}: {old!r}→{val!r}')
 
                 if changed:
                     match.save(update_fields=changed + ['updated_at'])
                     updated += 1
-                    logger.info('sync_football_scores: match %s %s', m['id'], changed)
+                    t1 = match.team1.name if match.team1 else '?'
+                    t2 = match.team2.name if match.team2 else '?'
+                    logger.info('sync_football_scores: %s vs %s | %s', t1, t2, ' | '.join(diffs))
 
                     if 'result' in changed and new_result in ('team1', 'team2', 'draw', 'NR'):
                         finalize_match_results.delay(match.id)

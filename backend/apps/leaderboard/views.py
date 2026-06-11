@@ -168,20 +168,18 @@ def _tie_key(entry):
             entry['matches_won'], entry['powerups_used'])
 
 
-def _head_to_head(username_a, username_b):
+def _head_to_head(username_a, username_b, tournament=None):
     """
     Return (a_wins, b_wins) from completed matches where A and B picked
     opposite sides.  Single query — safe to call only for 2-player ties.
     """
-    from django.db.models import Q as _Q
-    sels = (
-        Selection.objects
-        .filter(
-            user__username__in=[username_a, username_b],
-            match__result__in=['team1', 'team2'],
-        )
-        .select_related('match__team1', 'match__team2', 'selection', 'user')
+    qs = Selection.objects.filter(
+        user__username__in=[username_a, username_b],
+        match__result__in=['team1', 'team2'],
     )
+    if tournament is not None:
+        qs = qs.filter(match__tournament=tournament)
+    sels = qs.select_related('match__team1', 'match__team2', 'selection', 'user')
     by_match = {}
     for s in sels:
         by_match.setdefault(s.match_id, {})[s.user.username] = s
@@ -201,7 +199,7 @@ def _head_to_head(username_a, username_b):
     return a_wins, b_wins
 
 
-def _build_ranked_list(scores):
+def _build_ranked_list(scores, tournament=None):
     """
     Sort scores into a ranked list applying the full tiebreaker chain:
       Primary : highest total
@@ -235,7 +233,7 @@ def _build_ranked_list(scores):
             j += 1
         if j - i == 2:
             a, b = ranked[i], ranked[i + 1]
-            a_wins, b_wins = _head_to_head(a['username'], b['username'])
+            a_wins, b_wins = _head_to_head(a['username'], b['username'], tournament=tournament)
             if b_wins > a_wins:
                 ranked[i], ranked[i + 1] = ranked[i + 1], ranked[i]
             if a_wins == b_wins:
@@ -275,8 +273,9 @@ def take_snapshot(match_id):
         logger.error('take_snapshot: match %s not found', match_id)
         return
 
-    scores = calculate_scores()
-    ranked = _build_ranked_list(scores)
+    tournament = match.tournament
+    scores = calculate_scores(tournament=tournament)
+    ranked = _build_ranked_list(scores, tournament=tournament)
 
     snapshot_data = [
         {k: e[k] for k in (
@@ -293,14 +292,12 @@ def take_snapshot(match_id):
     prev_leader = None
     try:
         existing = LeaderboardSnapshot.objects.get(match=match)
-        # Snapshot exists — use its current leader as the "before" baseline
         if existing.rankings:
             prev_leader = existing.rankings[0]['username']
     except LeaderboardSnapshot.DoesNotExist:
-        # First time for this match — fall back to the previous match's snapshot
         try:
             prev = (LeaderboardSnapshot.objects
-                    .filter(match__datetime__lt=match.datetime)
+                    .filter(match__tournament=tournament, match__datetime__lt=match.datetime)
                     .latest('match__datetime'))
             if prev.rankings:
                 prev_leader = prev.rankings[0]['username']
@@ -312,11 +309,11 @@ def take_snapshot(match_id):
         defaults={'rankings': snapshot_data},
     )
 
-    # Refresh Redis cache (include streaks + rank changes)
-    streaks = compute_streaks(tournament=match.tournament)
+    # Attach rank changes and streaks (tournament-scoped)
+    streaks = compute_streaks(tournament=tournament)
     for e in ranked:
         e['streak'] = streaks.get(e['username'], [])
-    _attach_rank_changes(ranked)
+    _attach_rank_changes_scoped(ranked, tournament)
     cache.set(CACHE_KEY_LEADERBOARD, ranked, timeout=CACHE_TTL)
     logger.info('take_snapshot: saved snapshot + cache refreshed for match %s', match_id)
 
@@ -554,7 +551,7 @@ class LeaderboardView(APIView):
 
         if tournament:
             scores = calculate_scores(tournament=tournament)
-            ranked = _build_ranked_list(scores)
+            ranked = _build_ranked_list(scores, tournament=tournament)
             streaks = compute_streaks(tournament=tournament)
             for entry in ranked:
                 entry['streak'] = streaks.get(entry['username'], [])
@@ -596,7 +593,7 @@ class MyRankView(APIView):
 
         if tournament:
             scores = calculate_scores(tournament=tournament)
-            ranked = _build_ranked_list(scores)
+            ranked = _build_ranked_list(scores, tournament=tournament)
         else:
             ranked = get_cached_leaderboard()
 

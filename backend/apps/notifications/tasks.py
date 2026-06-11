@@ -203,7 +203,7 @@ def send_pick_reminders():
 
     windows = [
         ('24h', now + timedelta(hours=23),   now + timedelta(hours=25),   '24 hrs'),
-        ('1h',  now + timedelta(minutes=50), now + timedelta(minutes=70), '1 hr'),
+        ('1h',  now + timedelta(minutes=45), now + timedelta(minutes=75), '1 hr'),
     ]
 
     total_sent = 0
@@ -284,7 +284,7 @@ def notify_personal_rank_changes(changes, match_id):
             user=user,
             type='rank_change',
             message=message,
-            meta={'match_id': match_id, 'old_rank': change['old_rank'], 'new_rank': change['new_rank'], 'tournament_id': tournament_id},
+            meta={'match_id': match_id, 'old_rank': change['old_rank'], 'new_rank': change['new_rank'], 'tournament_id': tournament.id if tournament else None},
         )
         for sub in PushSubscription.objects.filter(user=user):
             if send_push_notification(
