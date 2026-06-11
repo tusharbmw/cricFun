@@ -329,6 +329,8 @@ def fetch_football_matches(tournament_id=None):
                 if was_created:
                     created += 1
                 else:
+                    if obj.result != 'TBD':
+                        continue  # live/completed matches are owned by sync_football_scores
                     changed = [k for k, v in fields.items() if getattr(obj, k) != v]
                     if changed:
                         for k in changed:
