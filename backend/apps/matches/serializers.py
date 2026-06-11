@@ -12,7 +12,7 @@ class TournamentSerializer(serializers.ModelSerializer):
 class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
-        fields = ['id', 'name', 'description', 'logo_url', 'location']
+        fields = ['id', 'name', 'description', 'logo_url', 'location', 'ranking']
 
 
 class MatchSerializer(serializers.ModelSerializer):

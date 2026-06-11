@@ -29,6 +29,7 @@ class Team(models.Model):
     logo = models.ImageField(blank=True, null=True)
     location = models.CharField(max_length=40, blank=True, null=True)
     logo_url = models.CharField(max_length=100, blank=True, null=True)
+    ranking = models.IntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ['name']
