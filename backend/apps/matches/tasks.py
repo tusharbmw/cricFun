@@ -396,6 +396,8 @@ def sync_football_scores():
                 full_time = score.get('fullTime') or {}
                 api_status   = m.get('status', '')
                 new_result   = map_status(api_status, score.get('winner'))
+                if new_result is None:
+                    continue  # FINISHED with null winner — API still processing
                 new_home     = full_time.get('home')
                 new_away     = full_time.get('away')
                 new_duration = map_duration(score.get('duration'))

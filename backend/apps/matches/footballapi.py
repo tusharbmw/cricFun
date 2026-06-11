@@ -50,21 +50,24 @@ _KNOCKOUT_STAGES = frozenset({
 
 # ── Pure mapping functions ────────────────────────────────────────────────────
 
-def map_status(status: str, winner: str | None) -> str:
-    """Map API status + winner → internal Match.result value."""
+def map_status(status: str, winner: str | None) -> str | None:
+    """Map API status + winner → internal Match.result value, or None to skip."""
     if status in ('SCHEDULED', 'TIMED'):
         return 'TBD'
-    if status in ('IN_PLAY', 'PAUSED'):
+    if status in ('IN_PLAY', 'PAUSED', 'SUSPENDED'):
         return 'IP'
-    if status == 'FINISHED':
+    if status in ('FINISHED', 'AWARDED'):
         if winner == 'HOME_TEAM':
             return 'team1'
         if winner == 'AWAY_TEAM':
             return 'team2'
         if winner == 'DRAW':
             return 'draw'
-        return 'NR'
-    # POSTPONED, CANCELLED, SUSPENDED
+        # FINISHED with null winner — API still processing, skip update
+        return None
+    if status == 'POSTPONED':
+        return 'DLD'
+    # CANCELLED and anything else
     return 'NR'
 
 
