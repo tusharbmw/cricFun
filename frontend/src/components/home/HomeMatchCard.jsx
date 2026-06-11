@@ -248,6 +248,9 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
             <span className={`text-sm font-medium text-center leading-tight ${t1Won && t1Picked ? 'text-green-600' : t1WinnerNotPicked ? 'text-amber-600' : t1Lost ? 'text-red-500' : 'text-gray-800'}`}>
               {match.team1?.name || 'TBD'}
             </span>
+            {match.team1?.ranking != null && (
+              <span className="text-[10px] text-gray-400 mt-0.5">#{match.team1.ranking}</span>
+            )}
           </div>
 
           {/* VS / Soccer score */}
@@ -288,6 +291,9 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
             <span className={`text-sm font-medium text-center leading-tight ${t2Won && t2Picked ? 'text-green-600' : t2WinnerNotPicked ? 'text-amber-600' : t2Lost ? 'text-red-500' : 'text-gray-800'}`}>
               {match.team2?.name || 'TBD'}
             </span>
+            {match.team2?.ranking != null && (
+              <span className="text-[10px] text-gray-400 mt-0.5">#{match.team2.ranking}</span>
+            )}
           </div>
         </div>
 

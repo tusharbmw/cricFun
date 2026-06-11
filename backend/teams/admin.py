@@ -43,7 +43,8 @@ class TournamentAdmin(admin.ModelAdmin):
 
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):
-    list_display  = ['name', 'location', 'description']
+    list_display  = ['name', 'location', 'ranking', 'description']
+    list_editable = ['ranking']
     search_fields = ['name']
 
 
