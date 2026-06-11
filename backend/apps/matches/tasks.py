@@ -421,6 +421,8 @@ def sync_football_scores():
                     ('status_text', new_status_text),
                 ]:
                     old = getattr(match, field)
+                    if field in ('home_score', 'away_score') and val is None and old is not None:
+                        continue  # never wipe a score we already have
                     if old != val:
                         setattr(match, field, val)
                         changed.append(field)
