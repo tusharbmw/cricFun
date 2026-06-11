@@ -406,6 +406,7 @@ def sync_football_scores():
                 )
 
                 changed = []
+                diffs = []
                 for field, val in [
                     ('result',      new_result),
                     ('home_score',  new_home),
@@ -414,14 +415,18 @@ def sync_football_scores():
                     ('duration',    new_duration),
                     ('status_text', new_status_text),
                 ]:
-                    if getattr(match, field) != val:
+                    old = getattr(match, field)
+                    if old != val:
                         setattr(match, field, val)
                         changed.append(field)
+                        diffs.append(f'{field}: {old!r}→{val!r}')
 
                 if changed:
                     match.save(update_fields=changed + ['updated_at'])
                     updated += 1
-                    logger.info('sync_football_scores: match %s %s', m['id'], changed)
+                    t1 = match.team1.name if match.team1 else '?'
+                    t2 = match.team2.name if match.team2 else '?'
+                    logger.info('sync_football_scores: %s vs %s | %s', t1, t2, ' | '.join(diffs))
 
                     if 'result' in changed and new_result in ('team1', 'team2', 'draw', 'NR'):
                         finalize_match_results.delay(match.id)
