@@ -203,7 +203,7 @@ def send_pick_reminders():
 
     windows = [
         ('24h', now + timedelta(hours=23),   now + timedelta(hours=25),   '24 hrs'),
-        ('1h',  now + timedelta(minutes=50), now + timedelta(minutes=70), '1 hr'),
+        ('1h',  now + timedelta(minutes=45), now + timedelta(minutes=75), '1 hr'),
     ]
 
     total_sent = 0
