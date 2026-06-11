@@ -189,6 +189,9 @@ function MatchPickRow({ match, existingPick, stats }) {
               </div>
             </div>
             <span className="text-sm font-medium text-center leading-tight text-gray-800">{match.team1?.name || 'TBD'}</span>
+            {match.team1?.ranking != null && (
+              <span className="text-[10px] text-gray-400 mt-0.5">#{match.team1.ranking}</span>
+            )}
           </div>
 
           <div className="text-gray-400 font-medium text-sm pt-3">VS</div>
@@ -203,6 +206,9 @@ function MatchPickRow({ match, existingPick, stats }) {
               </div>
             </div>
             <span className="text-sm font-medium text-center leading-tight text-gray-800">{match.team2?.name || 'TBD'}</span>
+            {match.team2?.ranking != null && (
+              <span className="text-[10px] text-gray-400 mt-0.5">#{match.team2.ranking}</span>
+            )}
           </div>
         </div>
 

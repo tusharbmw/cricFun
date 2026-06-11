@@ -338,15 +338,26 @@ export default function MatchDetail() {
               {matchStatusBadge(match.result)}
               {isSoccer && hasScore ? (
                 <div className="flex items-center gap-3 mt-2">
-                  <span className="text-lg font-bold text-gray-800">{match.team1?.name}</span>
+                  <div className="flex flex-col">
+                    <span className="text-lg font-bold text-gray-800">{match.team1?.name}</span>
+                    {match.team1?.ranking != null && <span className="text-[10px] text-gray-400">#{match.team1.ranking}</span>}
+                  </div>
                   <span className="text-2xl font-black text-gray-700 tabular-nums">
                     {match.home_score} — {match.away_score}
                   </span>
-                  <span className="text-lg font-bold text-gray-800">{match.team2?.name}</span>
+                  <div className="flex flex-col">
+                    <span className="text-lg font-bold text-gray-800">{match.team2?.name}</span>
+                    {match.team2?.ranking != null && <span className="text-[10px] text-gray-400">#{match.team2.ranking}</span>}
+                  </div>
                 </div>
               ) : (
                 <h1 className="text-xl font-bold text-gray-800 mt-2">
                   {match.team1?.name} vs {match.team2?.name}
+                  {(match.team1?.ranking != null || match.team2?.ranking != null) && (
+                    <span className="text-sm font-normal text-gray-400 ml-2">
+                      {match.team1?.ranking != null ? `#${match.team1.ranking}` : ''}{match.team1?.ranking != null && match.team2?.ranking != null ? ' vs ' : ''}{match.team2?.ranking != null ? `#${match.team2.ranking}` : ''}
+                    </span>
+                  )}
                 </h1>
               )}
               <p className="text-sm text-gray-500 mt-0.5">{match.description}</p>
