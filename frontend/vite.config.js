@@ -9,6 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   envDir: '../',   // read .env from project root (same file Django uses)
+  envPrefix: ['VITE_', 'VAPID_PUBLIC_KEY'],
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },
