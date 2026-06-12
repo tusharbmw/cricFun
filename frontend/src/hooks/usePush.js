@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { notificationsAPI } from '@/api/notifications'
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY ?? ''
+const VAPID_PUBLIC_KEY = import.meta.env.VAPID_PUBLIC_KEY ?? ''
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -31,7 +31,7 @@ export function usePush() {
 
   async function subscribe() {
     if (!VAPID_PUBLIC_KEY) {
-      console.warn('VITE_VAPID_PUBLIC_KEY is not set')
+      console.warn('VAPID_PUBLIC_KEY is not set')
       return
     }
     setLoading(true)

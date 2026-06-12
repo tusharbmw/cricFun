@@ -33,6 +33,5 @@ class Command(BaseCommand):
         self.stdout.write('\nAdd these to your .env file:\n')
         self.stdout.write(self.style.SUCCESS(f'VAPID_PRIVATE_KEY={priv_b64}'))
         self.stdout.write(self.style.SUCCESS(f'VAPID_PUBLIC_KEY={pub_b64}'))
-        self.stdout.write('\nAdd this to your frontend .env:\n')
-        self.stdout.write(self.style.SUCCESS(f'VITE_VAPID_PUBLIC_KEY={pub_b64}'))
+        self.stdout.write(self.style.SUCCESS(f'VAPID_ADMIN_EMAIL=your@email.com'))
         self.stdout.write('')
