@@ -12,14 +12,14 @@ import { useCountdown } from '@/hooks/useCountdown'
 
 const POWERUP_META = {
   cricket: {
-    hidden:      { emoji: '🕵️', label: 'Hidden' },
-    fake:        { emoji: '🃏', label: 'Googly' },
-    no_negative: { emoji: '🛡️', label: 'The Wall' },
+    hidden:      { emoji: '🕵️', label: 'Hidden',      key: 'hidden_count' },
+    fake:        { emoji: '🃏', label: 'Googly',      key: 'fake_count' },
+    no_negative: { emoji: '🛡️', label: 'The Wall',   key: 'no_negative_count' },
   },
   soccer: {
-    hidden:      { emoji: '🕵️', label: 'Hidden' },
-    fake:        { emoji: '🪄', label: 'Dummy' },
-    no_negative: { emoji: '🧤', label: 'Clean Sheet' },
+    hidden:      { emoji: '🕵️', label: 'Hidden',      key: 'hidden_count' },
+    fake:        { emoji: '🪄', label: 'Dummy',        key: 'fake_count' },
+    no_negative: { emoji: '🧤', label: 'Clean Sheet', key: 'no_negative_count' },
   },
 }
 
@@ -401,6 +401,7 @@ export default function MatchDetail() {
           onPickChange={() => {
             qc.invalidateQueries({ queryKey: ['picks', 'active', tid] })
             qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
+            qc.invalidateQueries({ queryKey: ['match', id, 'selections'] })
           }}
         />
       )}

@@ -53,6 +53,10 @@ function MatchPickRow({ match, existingPick, stats }) {
     existingPick?.draw ? 'draw' : (existingPick?.selection ?? null)
   )
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setSelected(existingPick?.draw ? 'draw' : (existingPick?.selection ?? null))
+  }, [existingPick?.id, existingPick?.draw, existingPick?.selection])
   const [saveError, setSaveError] = useState('')
   const [powerupLoading, setPowerupLoading] = useState(null)
   const [showChangePick, setShowChangePick] = useState(false)
@@ -106,6 +110,7 @@ function MatchPickRow({ match, existingPick, stats }) {
       }
       qc.invalidateQueries({ queryKey: ['picks', 'active'] })
       qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
+      qc.invalidateQueries({ queryKey: ['match', match.id, 'selections'] })
       setShowChangePick(false)
     } catch (err) {
       setSaveError(err.response?.data?.detail ?? err.response?.data?.non_field_errors?.[0] ?? err.response?.data?.draw?.[0] ?? 'Failed to save')
@@ -125,6 +130,7 @@ function MatchPickRow({ match, existingPick, stats }) {
       if (existingPick) await picksAPI.remove(existingPick.id)
       qc.invalidateQueries({ queryKey: ['picks', 'active'] })
       qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
+      qc.invalidateQueries({ queryKey: ['match', match.id, 'selections'] })
       setShowChangePick(false)
     } catch (err) {
       setSaveError(err.response?.data?.error ?? 'Failed to remove')

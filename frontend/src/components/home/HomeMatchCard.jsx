@@ -138,6 +138,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
       }
       qc.invalidateQueries({ queryKey: ['picks', 'active'] })
       qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
+      qc.invalidateQueries({ queryKey: ['match', match.id, 'selections'] })
       setShowChangePick(false)
     } catch (err) {
       setError(err.response?.data?.detail ?? err.response?.data?.non_field_errors?.[0] ?? err.response?.data?.draw?.[0] ?? 'Failed to save')
@@ -151,6 +152,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
       await picksAPI.remove(pick.id)
       qc.invalidateQueries({ queryKey: ['picks', 'active'] })
       qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
+      qc.invalidateQueries({ queryKey: ['match', match.id, 'selections'] })
       setShowChangePick(false)
     } catch (err) {
       setError(err.response?.data?.error ?? 'Failed to remove')
