@@ -267,11 +267,12 @@ function ResultCard({ match, myPick, highlighted }) {
         )}
 
         {/* Who picked what */}
-        {sel && (sel.team1_selections?.length > 0 || sel.team2_selections?.length > 0 || sel.team1_auto?.length > 0 || sel.team2_auto?.length > 0) && (
-          <div className="mt-3 grid grid-cols-2 gap-2">
+        {sel && (sel.team1_selections?.length > 0 || sel.team2_selections?.length > 0 || sel.team1_auto?.length > 0 || sel.team2_auto?.length > 0 || sel.draw_selections?.length > 0) && (
+          <div className={`mt-3 grid gap-2 ${sel.draw_selections?.length > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             {[
               { teamName: sel.team1, picks: sel.team1_selections ?? [], auto: sel.team1_auto ?? [], won: t1Won },
               { teamName: sel.team2, picks: sel.team2_selections ?? [], auto: sel.team2_auto ?? [], won: t2Won },
+              ...(sel.draw_selections?.length > 0 ? [{ teamName: '⚖ Draw', picks: sel.draw_selections, auto: [], won: isDrawResult }] : []),
             ].map(({ teamName, picks, auto, won }) => (
               <div key={teamName} className="rounded-lg p-2.5"
                 style={{ background: won ? '#EAF3DE' : '#f9fafb' }}>

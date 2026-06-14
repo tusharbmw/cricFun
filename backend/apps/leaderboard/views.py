@@ -420,7 +420,7 @@ def compute_streaks(tournament=None):
                     streak.append('S')
                 elif winner == 'draw' and pick[1]:
                     streak.append('W')
-                elif winner != 'draw' and pick[0] == winner:
+                elif winner != 'draw' and not pick[1] and pick[0] == winner:
                     streak.append('W')
                 else:
                     streak.append('L')
