@@ -189,6 +189,8 @@ def _head_to_head(username_a, username_b, tournament=None):
         if username_a not in picks or username_b not in picks:
             continue
         sa, sb = picks[username_a], picks[username_b]
+        if sa.draw or sb.draw:
+            continue  # draw pickers don't clash in H2H
         if sa.selection_id == sb.selection_id:
             continue  # same side — not a direct clash
         winner = sa.match.team1 if sa.match.result == 'team1' else sa.match.team2
@@ -420,7 +422,7 @@ def compute_streaks(tournament=None):
                     streak.append('S')
                 elif winner == 'draw' and pick[1]:
                     streak.append('W')
-                elif winner != 'draw' and pick[0] == winner:
+                elif winner != 'draw' and not pick[1] and pick[0] == winner:
                     streak.append('W')
                 else:
                     streak.append('L')

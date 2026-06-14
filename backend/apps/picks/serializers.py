@@ -61,6 +61,8 @@ class SelectionSerializer(serializers.ModelSerializer):
 
         # Draw pick validation
         draw = data.get('draw', getattr(self.instance, 'draw', False))
+        if draw:
+            data['selection'] = None
         if draw and match:
             if match.tournament.sport == Tournament.Sport.CRICKET:
                 raise serializers.ValidationError({'draw': 'Draw picks are not allowed in cricket.'})
