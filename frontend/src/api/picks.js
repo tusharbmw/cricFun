@@ -27,7 +27,7 @@ export const picksAPI = {
     return res
   }),
 
-  applyPowerup: (id, type) => api.post(`/picks/${id}/powerup/`, { powerup_type: type }).then(res => {
+  applyPowerup: (id, type, extra = {}) => api.post(`/picks/${id}/powerup/`, { powerup_type: type, ...extra }).then(res => {
     posthog.capture('powerup_applied', { pick_id: id, powerup_type: type })
     return res
   }),

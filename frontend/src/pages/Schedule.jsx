@@ -53,6 +53,8 @@ function MatchPickRow({ match, existingPick, stats }) {
     existingPick?.draw ? 'draw' : (existingPick?.selection ?? null)
   )
   const [saving, setSaving] = useState(false)
+  const [showDecoyPicker, setShowDecoyPicker] = useState(false)
+  const [pendingDecoy, setPendingDecoy] = useState(null)
 
   useEffect(() => {
     setSelected(existingPick?.draw ? 'draw' : (existingPick?.selection ?? null))
@@ -142,12 +144,37 @@ function MatchPickRow({ match, existingPick, stats }) {
 
   async function handlePowerup(type) {
     if (!existingPick) return
+    if (type === 'fake' && !appliedPowerup && match.allows_draw) {
+      setShowDecoyPicker(p => !p)
+      setPendingDecoy(null)
+      return
+    }
     setPowerupLoading(type)
     setSaveError('')
     try {
       await picksAPI.applyPowerup(existingPick.id, type)
       qc.invalidateQueries({ queryKey: ['picks', 'active'] })
       qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
+    } catch (err) {
+      setSaveError(err.response?.data?.error ?? 'Failed to apply powerup')
+    } finally {
+      setPowerupLoading(null)
+    }
+  }
+
+  async function handleApplyFakeWithDecoy(decoyKey) {
+    if (!existingPick) return
+    setPowerupLoading('fake')
+    setSaveError('')
+    const extra = decoyKey === 'draw'
+      ? { fake_draw: true }
+      : { fake_selection_id: decoyKey === 'team1' ? match.team1?.id : match.team2?.id }
+    try {
+      await picksAPI.applyPowerup(existingPick.id, 'fake', extra)
+      qc.invalidateQueries({ queryKey: ['picks', 'active'] })
+      qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
+      setShowDecoyPicker(false)
+      setPendingDecoy(null)
     } catch (err) {
       setSaveError(err.response?.data?.error ?? 'Failed to apply powerup')
     } finally {
@@ -321,27 +348,69 @@ function MatchPickRow({ match, existingPick, stats }) {
 
         {/* PowerPlay buttons */}
         {existingPick && !powerupsDisabled && !isLocked && !showChangePick && (
-          <div className="flex gap-2 flex-wrap mt-3">
-            {Object.entries(PM).map(([type, { emoji, label, key }]) => {
-              const available = (stats?.[key] ?? 0) > 0
-              const isActive = appliedPowerup === type
-              const otherApplied = !!appliedPowerup && !isActive
-              return (
-                <button key={type}
-                  onClick={() => handlePowerup(type)}
-                  disabled={(!available && !isActive) || otherApplied || powerupLoading !== null}
-                  className="flex-1 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-40"
-                  style={isActive
-                    ? { background: '#EEEDFE', color: '#3C3489', borderColor: '#AFA9EC' }
-                    : { background: 'transparent', color: '#6b7280', borderColor: '#e5e7eb' }
-                  }>
-                  {powerupLoading === type
-                    ? <span className="loading loading-spinner loading-xs" />
-                    : `${emoji} ${label}${isActive ? ' ✓' : ''}`
-                  }
-                </button>
-              )
-            })}
+          <div className="mt-3">
+            <div className="flex gap-2 flex-wrap">
+              {Object.entries(PM).map(([type, { emoji, label, key }]) => {
+                const available = (stats?.[key] ?? 0) > 0
+                const isActive = appliedPowerup === type
+                const otherApplied = !!appliedPowerup && !isActive
+                return (
+                  <button key={type}
+                    onClick={() => handlePowerup(type)}
+                    disabled={(!available && !isActive) || otherApplied || powerupLoading !== null}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-40"
+                    style={isActive
+                      ? { background: '#EEEDFE', color: '#3C3489', borderColor: '#AFA9EC' }
+                      : { background: 'transparent', color: '#6b7280', borderColor: '#e5e7eb' }
+                    }>
+                    {powerupLoading === type
+                      ? <span className="loading loading-spinner loading-xs" />
+                      : `${emoji} ${label}${isActive ? ' ✓' : ''}`
+                    }
+                  </button>
+                )
+              })}
+            </div>
+            {showDecoyPicker && !appliedPowerup && hasPick && (
+              <div className="mt-2 p-2.5 rounded-lg border" style={{ background: '#FBEAF0', borderColor: '#ED93B1' }}>
+                <p className="text-[9px] font-bold tracking-widest uppercase mb-2" style={{ color: '#72243E' }}>
+                  🪄 Decoy rivals will see
+                </p>
+                <div className="flex gap-2">
+                  {[
+                    { key: 'team1', label: match.team1?.name },
+                    { key: 'draw',  label: 'Draw', glyph: '⚖' },
+                    { key: 'team2', label: match.team2?.name },
+                  ].filter(o => o.key !== (drawSelected ? 'draw' : t1Selected ? 'team1' : 'team2')).map(o => {
+                    const active = pendingDecoy === o.key
+                    return (
+                      <button key={o.key} onClick={() => setPendingDecoy(active ? null : o.key)}
+                        className="flex-1 flex items-center justify-center gap-1 py-2 px-1.5 rounded-lg text-xs font-bold transition"
+                        style={{ background: active ? '#72243E' : 'white', border: `1.5px solid ${active ? '#72243E' : '#ED93B1'}`, color: active ? '#fff' : '#72243E' }}>
+                        {o.glyph && <span>{o.glyph}</span>}{o.label}{active ? ' ✓' : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+                {pendingDecoy ? (
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => handleApplyFakeWithDecoy(pendingDecoy)} disabled={powerupLoading !== null}
+                      className="flex-1 py-1.5 rounded-lg text-xs font-bold"
+                      style={{ background: '#72243E', color: '#fff' }}>
+                      {powerupLoading === 'fake' ? <span className="loading loading-spinner loading-xs" /> : 'Apply Dummy'}
+                    </button>
+                    <button onClick={() => { setShowDecoyPicker(false); setPendingDecoy(null) }}
+                      className="py-1.5 px-3 rounded-lg text-xs border border-gray-200 text-gray-500">
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[10px] mt-2 leading-snug" style={{ color: '#72243E', opacity: 0.85 }}>
+                    Three outcomes — choose which one to flash as your decoy.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
