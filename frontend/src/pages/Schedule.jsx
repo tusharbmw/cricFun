@@ -412,13 +412,20 @@ export default function Schedule() {
       </div>
 
       {stats && (
-        <div className="stats stats-horizontal bg-gray-50 shadow w-full">
-          {Object.entries(POWERUP_META[currentTournament?.sport ?? 'cricket']).map(([, meta]) => (
-            <div key={meta.key} className="stat place-items-center py-2">
-              <div className="stat-value text-base text-secondary">{stats[meta.key]}</div>
-              <div className="stat-desc text-xs">{meta.emoji} {meta.label}</div>
-            </div>
-          ))}
+        <div>
+          <div className="stats stats-horizontal bg-gray-50 shadow w-full">
+            {Object.entries(POWERUP_META[currentTournament?.sport ?? 'cricket']).map(([, meta]) => (
+              <div key={meta.key} className="stat place-items-center py-2">
+                <div className="stat-value text-base text-secondary">{stats[meta.key]}</div>
+                <div className="stat-desc text-xs">{meta.emoji} {meta.label}</div>
+              </div>
+            ))}
+          </div>
+          {stats.remaining_powerup_matches != null && (
+            <p className="text-xs text-gray-400 text-center mt-1.5">
+              ⏳ {stats.remaining_powerup_matches} match{stats.remaining_powerup_matches !== 1 ? 'es' : ''} remaining to use powerups
+            </p>
+          )}
         </div>
       )}
 

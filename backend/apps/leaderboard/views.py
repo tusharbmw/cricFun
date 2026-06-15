@@ -559,14 +559,14 @@ class LeaderboardView(APIView):
                 entry['streak'] = streaks.get(entry['username'], [])
             _attach_rank_changes_scoped(ranked, tournament)
             completed = Match.objects.filter(
-                Q(result='team1') | Q(result='team2') | Q(result='NR'),
+                Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR'),
                 tournament=tournament,
             ).count()
             total = Match.objects.exclude(result='CANC').filter(tournament=tournament).count()
         else:
             ranked = get_cached_leaderboard()
             completed = Match.objects.filter(
-                Q(result='team1') | Q(result='team2') | Q(result='NR')
+                Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR')
             ).count()
             total = Match.objects.exclude(result='CANC').count()
 

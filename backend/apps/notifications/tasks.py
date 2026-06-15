@@ -25,6 +25,8 @@ def notify_pick_result(selection_id, match_id):
     from apps.notifications.models import Notification, PushSubscription
     from apps.notifications.utils import send_push_notification
 
+    from django.core.cache import cache
+
     try:
         sel = Selection.objects.select_related(
             'user', 'match__team1', 'match__team2', 'match__tournament', 'selection',
@@ -32,6 +34,11 @@ def notify_pick_result(selection_id, match_id):
         match = sel.match
     except Selection.DoesNotExist:
         logger.error('notify_pick_result: selection %s not found', selection_id)
+        return
+
+    cache_key = f'pick_result_notified_{match_id}_{sel.user_id}'
+    if cache.get(cache_key):
+        logger.info('notify_pick_result: duplicate skipped for user %s match %s', sel.user_id, match_id)
         return
 
     t1 = match.team1.name if match.team1 else '?'
@@ -64,6 +71,7 @@ def notify_pick_result(selection_id, match_id):
     for sub in PushSubscription.objects.filter(user=sel.user):
         send_push_notification(sub, title='TushFun', body=message, url='/results', tag=f'pick-result-{match_id}')
 
+    cache.set(cache_key, 1, timeout=24 * 3600)
     logger.info('notify_pick_result: notified user %s for selection %s', sel.user_id, selection_id)
 
 
