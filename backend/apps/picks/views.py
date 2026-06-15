@@ -134,7 +134,25 @@ class SelectionViewSet(viewsets.ModelViewSet):
         missing = missing_qs.count()
         urgent_missing = missing_qs.filter(datetime__lte=now + timedelta(hours=24)).count()
 
-        return Response({**powerup_stats, 'missing_picks': missing, 'urgent_missing_picks': urgent_missing, 'pick_window_days': window})
+        # Remaining matches where powerups can be applied (sport-specific rules)
+        remaining_powerup_matches = 0
+        if tournament_id:
+            from teams.models import Tournament
+            try:
+                tournament = Tournament.objects.get(pk=tournament_id)
+                if tournament.sport == Tournament.Sport.SOCCER:
+                    from teams.models import Match as M
+                    remaining_powerup_matches = M.objects.filter(
+                        tournament_id=tournament_id, result='TBD',
+                    ).exclude(description__in=Match._SOCCER_HIGH_STAKES).count()
+                else:
+                    remaining_powerup_matches = Match.objects.filter(
+                        tournament_id=tournament_id, result='TBD', playoff=False,
+                    ).count()
+            except Tournament.DoesNotExist:
+                pass
+
+        return Response({**powerup_stats, 'missing_picks': missing, 'urgent_missing_picks': urgent_missing, 'pick_window_days': window, 'remaining_powerup_matches': remaining_powerup_matches})
 
     @action(detail=True, methods=['post'])
     def powerup(self, request, pk=None):
