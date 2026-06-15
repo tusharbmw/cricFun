@@ -60,6 +60,8 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showChangePick, setShowChangePick] = useState(false)
+  const [showDecoyPicker, setShowDecoyPicker] = useState(false)
+  const [pendingDecoy, setPendingDecoy] = useState(null)
 
   const now = Date.now()
   const dt = new Date(match.datetime)
@@ -161,11 +163,35 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
 
   async function applyPowerup(type) {
     if (!hasPick || saving) return
+    if (type === 'fake' && !powerup && match.allows_draw) {
+      setShowDecoyPicker(p => !p)
+      setPendingDecoy(null)
+      return
+    }
     setSaving(true); setError('')
     try {
       await picksAPI.applyPowerup(pick.id, type)
       qc.invalidateQueries({ queryKey: ['picks', 'active'] })
       qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
+      qc.invalidateQueries({ queryKey: ['match', match.id, 'selections'] })
+    } catch (err) {
+      setError(err.response?.data?.error ?? 'Failed to apply')
+    } finally { setSaving(false) }
+  }
+
+  async function applyFakeWithDecoy(decoyKey) {
+    if (!hasPick || saving) return
+    setSaving(true); setError('')
+    const extra = decoyKey === 'draw'
+      ? { fake_draw: true }
+      : { fake_selection_id: decoyKey === 'team1' ? match.team1?.id : match.team2?.id }
+    try {
+      await picksAPI.applyPowerup(pick.id, 'fake', extra)
+      qc.invalidateQueries({ queryKey: ['picks', 'active'] })
+      qc.invalidateQueries({ queryKey: ['picks', 'stats'] })
+      qc.invalidateQueries({ queryKey: ['match', match.id, 'selections'] })
+      setShowDecoyPicker(false)
+      setPendingDecoy(null)
     } catch (err) {
       setError(err.response?.data?.error ?? 'Failed to apply')
     } finally { setSaving(false) }
@@ -438,23 +464,65 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
 
         {/* Powerup buttons (mobile tap) */}
         {hasPick && !isLocked && !isCompleted && !powersDisabled && !showChangePick && (
-          <div className="flex gap-2 flex-wrap mt-3">
-            {Object.entries(PM).map(([type, { emoji, label, key }]) => {
-              const available = (stats?.[key] ?? 0) > 0
-              const isActive = powerup === type
-              const otherActive = !!powerup && !isActive
-              return (
-                <button key={type} onClick={() => applyPowerup(type)}
-                  disabled={(!available && !isActive) || otherActive || saving}
-                  className="flex-1 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-40"
-                  style={isActive
-                    ? { background: '#EEEDFE', color: '#3C3489', borderColor: '#AFA9EC' }
-                    : { background: 'transparent', color: '#6b7280', borderColor: '#e5e7eb' }
-                  }>
-                  {emoji} {label}{isActive ? ' ✓' : ''}
-                </button>
-              )
-            })}
+          <div className="mt-3">
+            <div className="flex gap-2 flex-wrap">
+              {Object.entries(PM).map(([type, { emoji, label, key }]) => {
+                const available = (stats?.[key] ?? 0) > 0
+                const isActive = powerup === type
+                const otherActive = !!powerup && !isActive
+                return (
+                  <button key={type} onClick={() => applyPowerup(type)}
+                    disabled={(!available && !isActive) || otherActive || saving}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-40"
+                    style={isActive
+                      ? { background: '#EEEDFE', color: '#3C3489', borderColor: '#AFA9EC' }
+                      : { background: 'transparent', color: '#6b7280', borderColor: '#e5e7eb' }
+                    }>
+                    {emoji} {label}{isActive ? ' ✓' : ''}
+                  </button>
+                )
+              })}
+            </div>
+            {showDecoyPicker && !powerup && hasPick && (
+              <div className="mt-2 p-2.5 rounded-lg border" style={{ background: '#FBEAF0', borderColor: '#ED93B1' }}>
+                <p className="text-[9px] font-bold tracking-widest uppercase mb-2" style={{ color: '#72243E' }}>
+                  🪄 Decoy rivals will see
+                </p>
+                <div className="flex gap-2">
+                  {[
+                    { key: 'team1', label: match.team1?.name },
+                    { key: 'draw',  label: 'Draw', glyph: '⚖' },
+                    { key: 'team2', label: match.team2?.name },
+                  ].filter(o => o.key !== (myPickDraw ? 'draw' : t1Picked ? 'team1' : 'team2')).map(o => {
+                    const active = pendingDecoy === o.key
+                    return (
+                      <button key={o.key} onClick={() => setPendingDecoy(active ? null : o.key)}
+                        className="flex-1 flex items-center justify-center gap-1 py-2 px-1.5 rounded-lg text-xs font-bold transition"
+                        style={{ background: active ? '#72243E' : 'white', border: `1.5px solid ${active ? '#72243E' : '#ED93B1'}`, color: active ? '#fff' : '#72243E' }}>
+                        {o.glyph && <span>{o.glyph}</span>}{o.label}{active ? ' ✓' : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+                {pendingDecoy ? (
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => applyFakeWithDecoy(pendingDecoy)} disabled={saving}
+                      className="flex-1 py-1.5 rounded-lg text-xs font-bold"
+                      style={{ background: '#72243E', color: '#fff' }}>
+                      {saving ? <span className="loading loading-spinner loading-xs" /> : 'Apply Dummy'}
+                    </button>
+                    <button onClick={() => { setShowDecoyPicker(false); setPendingDecoy(null) }}
+                      className="py-1.5 px-3 rounded-lg text-xs border border-gray-200 text-gray-500">
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[10px] mt-2 leading-snug" style={{ color: '#72243E', opacity: 0.85 }}>
+                    Three outcomes — choose which one to flash as your decoy.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
