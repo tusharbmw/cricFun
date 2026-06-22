@@ -366,21 +366,26 @@ def take_snapshot(match_id):
 
 def compute_streaks(tournament=None):
     """
-    Return {username: ['W','L','S','N', ...]} for each active user.
+    Return {username: ['W','L','S','N','💀','🛡','🧤', ...]} for each active user.
     Each entry represents one of their last 5 completed matches (oldest → newest).
-      W = picked the winner (or picked draw on a draw result)
-      L = picked the loser
-      S = skipped (no pick placed)
-      N = no result / rain
+      W  = picked the winner (or picked draw on a draw result)
+      L  = picked the loser
+      S  = free skip (no pick, within the allowed skip budget)
+      N  = no result / rain
+      💀 = penalty pick (high-stakes non-picker, or exceeded 5 free skips)
+      🛡 = cricket loss blocked by The Wall (no_negative)
+      🧤 = soccer loss blocked by Clean Sheet (no_negative)
     Cancelled matches are excluded — they don't count toward the 5.
     Scoped to a specific tournament when provided.
     """
+    from django.db.models import Count as _Count
+
     qs = Match.objects.filter(
         Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR')
     )
     if tournament:
         qs = qs.filter(tournament=tournament)
-    recent_matches = list(qs.order_by('-datetime')[:5])
+    recent_matches = list(qs.select_related('tournament').order_by('-datetime')[:5])
     if not recent_matches:
         return {}
 
@@ -396,36 +401,74 @@ def compute_streaks(tournament=None):
         else:
             winner_map[m.id] = None
 
-    # picks indexed by (match_id, username) → (selection_id, drew)
+    # picks indexed by (match_id, username) → (selection_id, drew, no_negative)
     picks = {}
     for s in (
         Selection.objects
         .filter(match__in=recent_matches)
         .select_related('user')
-        .values('match_id', 'user__username', 'selection_id', 'draw')
+        .values('match_id', 'user__username', 'selection_id', 'draw', 'no_negative')
     ):
-        picks[(s['match_id'], s['user__username'])] = (s['selection_id'], s['draw'])
+        picks[(s['match_id'], s['user__username'])] = (s['selection_id'], s['draw'], s['no_negative'])
 
     usernames = list(User.objects.filter(is_active=True, tournament_enrollments__isnull=False).distinct().values_list('username', flat=True))
+
+    # Pre-compute prior skip counts per (match_id, username) for penalty detection.
+    # For each non-high-stakes recent match, count how many non-HS completed matches
+    # before it each user skipped. ≥ MAX_SKIPPED_ALLOWED → penalty.
+    skip_before = {}  # (match_id, username) -> int
+    non_hs_recent = [m for m in recent_matches if not m.is_high_stakes and winner_map.get(m.id) is not None]
+    for rm in non_hs_recent:
+        # All non-high-stakes completed matches in the same tournament before rm
+        is_soccer = rm.tournament.sport == 'soccer'
+        prior_qs = Match.objects.filter(
+            tournament_id=rm.tournament_id,
+            result__in=('team1', 'team2', 'draw', 'NR'),
+            datetime__lt=rm.datetime,
+        )
+        if is_soccer:
+            prior_qs = prior_qs.exclude(description__in=Match._SOCCER_HIGH_STAKES)
+        else:
+            prior_qs = prior_qs.filter(playoff=False)
+
+        prior_ids = list(prior_qs.values_list('id', flat=True))
+        prior_count = len(prior_ids)
+        if prior_count == 0:
+            for u in usernames:
+                skip_before[(rm.id, u)] = 0
+            continue
+
+        picks_made = dict(
+            Selection.objects.filter(match_id__in=prior_ids)
+            .values('user__username')
+            .annotate(cnt=_Count('id'))
+            .values_list('user__username', 'cnt')
+        )
+        for u in usernames:
+            skip_before[(rm.id, u)] = prior_count - picks_made.get(u, 0)
 
     streaks = {}
     for username in usernames:
         streak = []
-        # recent_matches is desc (newest first) — matches display order
         for m in recent_matches:
             winner = winner_map[m.id]
             if winner is None:
                 streak.append('N')
-            else:
-                pick = picks.get((m.id, username))
-                if pick is None:
-                    streak.append('S')
-                elif winner == 'draw' and pick[1]:
-                    streak.append('W')
-                elif winner != 'draw' and not pick[1] and pick[0] == winner:
-                    streak.append('W')
+                continue
+            pick = picks.get((m.id, username))
+            if pick is None:
+                if m.is_high_stakes or skip_before.get((m.id, username), 0) >= MAX_SKIPPED_ALLOWED:
+                    streak.append('💀')
                 else:
-                    streak.append('L')
+                    streak.append('S')
+            elif winner == 'draw' and pick[1]:
+                streak.append('W')
+            elif winner != 'draw' and not pick[1] and pick[0] == winner:
+                streak.append('W')
+            elif pick[2]:  # no_negative blocked the loss
+                streak.append('🛡' if m.tournament.sport == 'cricket' else '🧤')
+            else:
+                streak.append('L')
         streaks[username] = streak
 
     return streaks

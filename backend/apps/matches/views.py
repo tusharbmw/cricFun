@@ -232,23 +232,69 @@ class MatchViewSet(viewsets.ModelViewSet):
                 elif s.no_negative:
                     powerups[s.user.username] = 'no_negative'
 
-        # For completed playoff matches, assign non-pickers to the losing side
+        # Assign non-pickers to the losing side for display on Results page,
+        # mirroring the penalty logic in calculate_scores.
         team1_auto = []
         team2_auto = []
-        if match.playoff and match.result in ('team1', 'team2'):
+        if match.result in ('team1', 'team2', 'draw'):
             from django.contrib.auth.models import User as _User
+            from django.db.models import Count as _Count
+            from teams.models import Selection as _Sel
+
+            MAX_SKIPPED = 5
+
             all_usernames = set(
                 _User.objects.filter(
                     is_active=True,
                     tournament_enrollments__tournament=match.tournament,
                 ).values_list('username', flat=True)
             )
-            picked_usernames = set(sel1_users) | set(sel2_users)
+            picked_usernames = set(sel1_users) | set(sel2_users) | set(sel_draw_users)
             non_pickers = sorted(all_usernames - picked_usernames)
-            if match.result == 'team1':
-                team2_auto = non_pickers
-            else:
-                team1_auto = non_pickers
+
+            if non_pickers:
+                if match.is_high_stakes:
+                    # QF+ / all cricket playoffs: all non-pickers auto-assigned to losing side
+                    penalised = non_pickers
+                else:
+                    # Group stage / R32 / R16: only excess-skip users are penalised
+                    is_soccer = match.tournament.sport == Tournament.Sport.SOCCER
+                    prior_qs = Match.objects.filter(
+                        tournament=match.tournament,
+                        result__in=('team1', 'team2', 'draw', 'NR'),
+                        datetime__lt=match.datetime,
+                    )
+                    if is_soccer:
+                        prior_qs = prior_qs.exclude(description__in=Match._SOCCER_HIGH_STAKES)
+                    else:
+                        prior_qs = prior_qs.filter(playoff=False)
+
+                    prior_ids = list(prior_qs.values_list('id', flat=True))
+                    prior_count = len(prior_ids)
+
+                    if prior_count == 0:
+                        penalised = []
+                    else:
+                        picks_made = dict(
+                            _Sel.objects.filter(
+                                match_id__in=prior_ids,
+                                user__username__in=non_pickers,
+                            ).values('user__username')
+                            .annotate(cnt=_Count('id'))
+                            .values_list('user__username', 'cnt')
+                        )
+                        penalised = [
+                            u for u in non_pickers
+                            if (prior_count - picks_made.get(u, 0)) >= MAX_SKIPPED
+                        ]
+
+                if penalised:
+                    if match.result == 'team1':
+                        team2_auto = penalised
+                    elif match.result == 'team2':
+                        team1_auto = penalised
+                    else:  # draw — assign to team1 side (same as scoring logic)
+                        team1_auto = penalised
 
         return Response({
             'match_id': match.id,

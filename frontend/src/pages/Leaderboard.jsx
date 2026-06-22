@@ -318,14 +318,18 @@ export default function Leaderboard() {
                         <div className="flex gap-0.5 mt-0.5">
                           {row.streak.map((s, idx) => (
                             <span key={idx} className={`text-[9px] font-bold px-1 py-px rounded ${
-                              s === 'W' ? 'bg-green-100 text-green-700' :
-                              s === 'L' ? 'bg-red-100 text-red-700' :
-                              s === 'N' ? 'bg-yellow-100 text-yellow-700' :
+                              s === 'W'  ? 'bg-green-100 text-green-700' :
+                              s === 'L'  ? 'bg-red-100 text-red-700' :
+                              s === 'N'  ? 'bg-yellow-100 text-yellow-700' :
+                              s === '💀' ? 'bg-amber-100 text-amber-700' :
+                              (s === '🛡' || s === '🧤') ? 'bg-purple-100 text-purple-700' :
                               'bg-gray-100 text-gray-400'
                             } ${idx === 0 ? (
-                              s === 'W' ? 'ring-1 ring-green-400' :
-                              s === 'L' ? 'ring-1 ring-red-400' :
-                              s === 'N' ? 'ring-1 ring-yellow-400' :
+                              s === 'W'  ? 'ring-1 ring-green-400' :
+                              s === 'L'  ? 'ring-1 ring-red-400' :
+                              s === 'N'  ? 'ring-1 ring-yellow-400' :
+                              s === '💀' ? 'ring-1 ring-amber-400' :
+                              (s === '🛡' || s === '🧤') ? 'ring-1 ring-purple-400' :
                               'ring-1 ring-gray-400'
                             ) : ''}`}>{s}</span>
                           ))}
