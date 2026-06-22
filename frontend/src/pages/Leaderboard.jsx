@@ -284,7 +284,7 @@ export default function Leaderboard() {
       <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="table table-sm w-full">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white shadow-sm">
               <tr className="text-gray-500 text-xs uppercase tracking-wider">
                 <th className="w-10">#</th>
                 <th>Player</th>
@@ -357,7 +357,7 @@ export default function Leaderboard() {
       </div>
 
       <div className="text-xs text-gray-400 text-center">
-        W = Points Won · L = Points Lost · S = Skipped · MW = Matches Won
+        W = Points Won · L = Points Lost · S = Free Skips (max 5) · MW = Matches Won
       </div>
 
       {(() => {
