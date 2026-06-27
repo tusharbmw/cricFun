@@ -64,7 +64,7 @@ def calculate_scores(upto_match_id=None, tournament=None):
 
     matches_qs = Match.objects.filter(
         Q(result='team1') | Q(result='team2') | Q(result='draw')
-    ).select_related('tournament').prefetch_related('selection_set__user', 'selection_set__selection')
+    ).select_related('tournament').prefetch_related('selection_set__user', 'selection_set__selection').order_by('datetime', 'pk')
 
     if tournament is not None:
         matches_qs = matches_qs.filter(tournament=tournament)
