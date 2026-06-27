@@ -84,7 +84,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
   const hasPick = !!pick
   const myPickDraw = pick?.draw === true
   const powerup = pick?.hidden ? 'hidden' : pick?.fake ? 'fake' : pick?.no_negative ? 'no_negative' : null
-  const powersDisabled = match.playoff
+  const powersDisabled = match.is_high_stakes
 
   const myPickId = pick?.selection ?? null
   const myPickName = pick?.selected_team_name ?? null
