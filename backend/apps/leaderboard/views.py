@@ -424,7 +424,8 @@ def compute_streaks(tournament=None):
         prior_qs = Match.objects.filter(
             tournament_id=rm.tournament_id,
             result__in=('team1', 'team2', 'draw', 'NR'),
-            datetime__lt=rm.datetime,
+        ).filter(
+            Q(datetime__lt=rm.datetime) | Q(datetime=rm.datetime, pk__lt=rm.pk)
         )
         if is_soccer:
             prior_qs = prior_qs.exclude(description__in=Match._SOCCER_HIGH_STAKES)
