@@ -268,41 +268,11 @@ class SiteSettingsAdmin(admin.ModelAdmin):
     def recalculate_leaderboard_view(self, request):
         if request.method != 'POST':
             return redirect(self._settings_change_url(request))
-        from django.db.models import Q
-        from teams.models import Match
-        from apps.leaderboard.models import LeaderboardSnapshot
-        from apps.leaderboard.views import (
-            CACHE_KEY_LEADERBOARD, CACHE_TTL, _build_ranked_list, calculate_scores,
-        )
-        from django.core.cache import cache as django_cache
-
-        completed = list(
-            Match.objects.filter(
-                Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR')
-            ).select_related('tournament').order_by('datetime')
-        )
-
-        # Force-regenerate every snapshot regardless of whether it exists
-        for match in completed:
-            tournament    = match.tournament
-            scores        = calculate_scores(upto_match_id=match.id, tournament=tournament)
-            ranked        = _build_ranked_list(scores, tournament=tournament)
-            snapshot_data = [
-                {k: e[k] for k in (
-                    'rank', 'username', 'user_id', 'total',
-                    'won', 'lost', 'skipped', 'matches_won', 'matches_lost'
-                )}
-                for e in ranked
-            ]
-            LeaderboardSnapshot.objects.update_or_create(
-                match=match, defaults={'rankings': snapshot_data}
-            )
-
-        django_cache.delete(CACHE_KEY_LEADERBOARD)
-
+        from apps.leaderboard.tasks import recalculate_leaderboard
+        recalculate_leaderboard.delay()
         messages.success(
             request,
-            f'Recalculated {len(completed)} snapshot(s) from scratch. Cache cleared.'
+            'Leaderboard recalculation started in background. Refresh in a minute to see updated snapshots.'
         )
         return redirect(self._settings_change_url(request))
 
