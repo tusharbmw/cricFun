@@ -454,7 +454,28 @@ def sync_football_scores():
 def finalize_match_results(match_id):
     """Triggered after a match result is set. Dispatches pick processing."""
     from apps.picks.tasks import process_pick_results
+    from apps.matches.views import CACHE_KEY_TEAM_FORM_PFX
+    from django.core.cache import cache as _cache
+    from django.db.models import Q as _Q
+
     process_pick_results.delay(match_id)
+
+    # Invalidate team_form cache for all TBD matches involving either team
+    try:
+        finished = Match.objects.select_related('team1', 'team2').get(pk=match_id)
+        if finished.team1 and finished.team2:
+            affected_ids = list(
+                Match.objects.filter(
+                    _Q(team1=finished.team1) | _Q(team1=finished.team2) |
+                    _Q(team2=finished.team1) | _Q(team2=finished.team2),
+                    result='TBD',
+                ).values_list('id', flat=True)
+            )
+            if affected_ids:
+                _cache.delete_many([f'{CACHE_KEY_TEAM_FORM_PFX}{mid}' for mid in affected_ids])
+    except Match.DoesNotExist:
+        pass
+
     return f'finalize triggered for match {match_id}'
 
 
