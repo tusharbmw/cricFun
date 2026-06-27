@@ -75,7 +75,7 @@ function MatchPickRow({ match, existingPick, stats }) {
   const hasPick = selected !== null
   const drawSelected = selected === 'draw'
   const hasPowerup = existingPick?.hidden || existingPick?.fake || existingPick?.no_negative
-  const powerupsDisabled = match.playoff
+  const powerupsDisabled = match.is_high_stakes
   const appliedPowerup = existingPick?.hidden ? 'hidden' : existingPick?.fake ? 'fake' : existingPick?.no_negative ? 'no_negative' : null
 
   const countdown = useCountdown(match.datetime)
