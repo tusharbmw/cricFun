@@ -195,10 +195,10 @@ class SelectionViewSet(viewsets.ModelViewSet):
         if stats[f'{powerup_type}_count'] <= 0:
             return Response({'error': f'No {powerup_type} powerups remaining.'}, status=400)
 
-        # Soccer fake powerup: user must specify what rivals see as the decoy
+        # Soccer group-stage fake powerup: user must specify the decoy (draw is a valid option)
         if powerup_type == 'fake':
             from teams.models import Tournament
-            if selection.match.tournament.sport == Tournament.Sport.SOCCER:
+            if selection.match.tournament.sport == Tournament.Sport.SOCCER and not selection.match.playoff:
                 fake_sel = serializer.validated_data.get('fake_selection_id')
                 fake_draw = serializer.validated_data.get('fake_draw', False)
                 if not fake_sel and not fake_draw:
