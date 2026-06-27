@@ -32,6 +32,7 @@ class MatchSerializer(serializers.ModelSerializer):
     allows_draw = serializers.SerializerMethodField()
     is_live = serializers.BooleanField(read_only=True)
     is_completed = serializers.BooleanField(read_only=True)
+    is_high_stakes = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Match
@@ -43,7 +44,7 @@ class MatchSerializer(serializers.ModelSerializer):
             'scores', 'status_text',
             'home_score', 'away_score', 'minute', 'duration', 'odds',
             'allows_draw',
-            'is_live', 'is_completed', 'created_at', 'updated_at',
+            'is_live', 'is_completed', 'is_high_stakes', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
 

@@ -217,7 +217,8 @@ def send_pick_reminders():
     total_sent = 0
     for window_key, start, end, label in windows:
         matches = (Match.objects
-                   .filter(result='TBD', datetime__gte=start, datetime__lte=end)
+                   .filter(result='TBD', datetime__gte=start, datetime__lte=end,
+                           team1__isnull=False, team2__isnull=False)
                    .select_related('team1', 'team2'))
 
         for match in matches:

@@ -52,7 +52,7 @@ function MatchDetailPicker({ match, existingPick, pickStats, PM, onPickChange })
   const t1Selected = selected === match.team1?.id
   const hasPowerup = existingPick?.hidden || existingPick?.fake || existingPick?.no_negative
   const appliedPowerup = existingPick?.hidden ? 'hidden' : existingPick?.fake ? 'fake' : existingPick?.no_negative ? 'no_negative' : null
-  const powerupsDisabled = match.playoff
+  const powerupsDisabled = match.is_high_stakes
   const countdown = useCountdown(match.datetime)
 
   const showPickButtons = !isLocked && (!hasPick || showChange)
