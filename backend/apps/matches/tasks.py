@@ -425,8 +425,8 @@ def sync_football_scores():
                     if field in ('home_score', 'away_score') and val is None and old is not None:
                         continue  # never wipe a score we already have
                     _final = {'team1', 'team2', 'draw', 'NR'}
-                    if field == 'result' and old in _final and val not in _final:
-                        continue  # never roll back from a final result (API fluctuation)
+                    if field == 'result' and old in _final:
+                        continue  # once a final result is set, ignore all API changes (admin must correct manually)
                     if old != val:
                         setattr(match, field, val)
                         changed.append(field)
