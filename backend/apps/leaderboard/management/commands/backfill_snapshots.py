@@ -32,7 +32,7 @@ class Command(BaseCommand):
 
         completed = list(
             Match.objects.filter(
-                Q(result='team1') | Q(result='team2') | Q(result='NR')
+                Q(result='team1') | Q(result='team2') | Q(result='draw') | Q(result='NR')
             ).select_related('tournament').order_by('datetime')
         )
 
