@@ -128,8 +128,7 @@ class SelectionViewSet(viewsets.ModelViewSet):
         window = SiteSettings.get().pick_window_days
         missing_qs = Match.objects.filter(
             result='TBD', datetime__gte=now, datetime__lte=now + timedelta(days=window),
-            team1__isnull=False, team2__isnull=False,
-        ).exclude(selection__user=request.user)
+        ).exclude(team1__name='TBD').exclude(team2__name='TBD').exclude(selection__user=request.user)
         if tournament_id:
             missing_qs = missing_qs.filter(tournament_id=tournament_id)
         missing = missing_qs.count()
