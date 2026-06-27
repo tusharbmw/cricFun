@@ -262,7 +262,8 @@ class MatchViewSet(viewsets.ModelViewSet):
                     prior_qs = Match.objects.filter(
                         tournament=match.tournament,
                         result__in=('team1', 'team2', 'draw', 'NR'),
-                        datetime__lt=match.datetime,
+                    ).filter(
+                        Q(datetime__lt=match.datetime) | Q(datetime=match.datetime, pk__lt=match.pk)
                     )
                     if is_soccer:
                         prior_qs = prior_qs.exclude(description__in=Match._SOCCER_HIGH_STAKES)

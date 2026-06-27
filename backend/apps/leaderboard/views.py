@@ -64,7 +64,7 @@ def calculate_scores(upto_match_id=None, tournament=None):
 
     matches_qs = Match.objects.filter(
         Q(result='team1') | Q(result='team2') | Q(result='draw')
-    ).select_related('tournament').prefetch_related('selection_set__user', 'selection_set__selection')
+    ).select_related('tournament').prefetch_related('selection_set__user', 'selection_set__selection').order_by('datetime', 'pk')
 
     if tournament is not None:
         matches_qs = matches_qs.filter(tournament=tournament)
@@ -424,7 +424,8 @@ def compute_streaks(tournament=None):
         prior_qs = Match.objects.filter(
             tournament_id=rm.tournament_id,
             result__in=('team1', 'team2', 'draw', 'NR'),
-            datetime__lt=rm.datetime,
+        ).filter(
+            Q(datetime__lt=rm.datetime) | Q(datetime=rm.datetime, pk__lt=rm.pk)
         )
         if is_soccer:
             prior_qs = prior_qs.exclude(description__in=Match._SOCCER_HIGH_STAKES)
