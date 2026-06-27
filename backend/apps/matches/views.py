@@ -36,7 +36,7 @@ class MatchViewSet(viewsets.ModelViewSet):
     - Create/update/delete: admin only
     Custom actions: /live/, /upcoming/, /completed/
     """
-    queryset = Match.objects.select_related('team1', 'team2').all()
+    queryset = Match.objects.select_related('team1', 'team2', 'tournament').all()
     serializer_class = MatchSerializer
     permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]

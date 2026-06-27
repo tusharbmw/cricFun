@@ -110,7 +110,7 @@ function NotificationDropdown({ onClose, missingCount, isUrgent }) {
       {/* Sticky missing-picks notice */}
       {missingCount > 0 && (
         <Link
-          to="/schedule"
+          to="/schedule?unpicked=1"
           onClick={onClose}
           className="flex items-center gap-2.5 px-4 py-2.5 border-b border-gray-100"
           style={{ background: isUrgent ? '#FAEEDA' : '#E6F1FB' }}

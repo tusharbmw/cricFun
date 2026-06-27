@@ -217,7 +217,8 @@ def send_pick_reminders():
     total_sent = 0
     for window_key, start, end, label in windows:
         matches = (Match.objects
-                   .filter(result='TBD', datetime__gte=start, datetime__lte=end)
+                   .filter(result='TBD', datetime__gte=start, datetime__lte=end,
+                           team1__isnull=False, team2__isnull=False)
                    .select_related('team1', 'team2'))
 
         for match in matches:
@@ -240,7 +241,7 @@ def send_pick_reminders():
                 body = f'{t1} vs {t2} — pick locks in {label}!'
 
                 if send_push_notification(
-                    sub, title='⏰ Pick Reminder', body=body, url='/schedule',
+                    sub, title='⏰ Pick Reminder', body=body, url=f'/match/{match.id}',
                     tag=f'pick-reminder-{match.id}'
                 ):
                     cache.set(cache_key, 1, timeout=3 * 3600)
