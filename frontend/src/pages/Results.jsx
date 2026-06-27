@@ -128,7 +128,7 @@ function ResultCard({ match, myPick, highlighted }) {
   })
 
   const isSkipped = !myPick && match.result !== 'CANC'
-  const isPlayoffAutoLoss = isSkipped && match.playoff && !!winner && !!sel
+  const isPlayoffAutoLoss = isSkipped && match.is_high_stakes && !!winner && !!sel
 
   let pointsDisplay = null
   if (isPlayoffAutoLoss) {
