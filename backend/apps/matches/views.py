@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.db.models import Q
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
@@ -8,6 +9,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from teams.models import Team, Match, Tournament
 from apps.core.permissions import IsAdminOrReadOnly
 from .serializers import MatchSerializer, TeamSerializer, TournamentSerializer
+
+CACHE_KEY_TEAM_FORM_PFX = 'team_form:'
+CACHE_TTL_TEAM_FORM = 6 * 3600  # 6 hours fallback
 
 
 class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
@@ -96,12 +100,17 @@ class MatchViewSet(viewsets.ModelViewSet):
         match = self.get_object()
         tournament = match.tournament
 
+        cache_key = f'{CACHE_KEY_TEAM_FORM_PFX}{match.id}'
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         def get_form(team):
             if not team:
                 return []
             recent = (
                 Match.objects
-                .filter(Q(team1=team) | Q(team2=team), result__in=['team1', 'team2', 'NR'])
+                .filter(Q(team1=team) | Q(team2=team), result__in=['team1', 'team2', 'draw', 'NR'])
                 .exclude(pk=match.pk)
                 .select_related('team1', 'team2')
                 .order_by('-datetime')[:5]
@@ -111,6 +120,8 @@ class MatchViewSet(viewsets.ModelViewSet):
                 opponent = m.team2.name if m.team1 == team else m.team1.name
                 if m.result == 'NR':
                     outcome = 'N'
+                elif m.result == 'draw':
+                    outcome = 'D'
                 elif (m.result == 'team1' and m.team1 == team) or (m.result == 'team2' and m.team2 == team):
                     outcome = 'W'
                 else:
@@ -123,7 +134,7 @@ class MatchViewSet(viewsets.ModelViewSet):
                 return None
             qs = Match.objects.filter(
                 Q(team1=team) | Q(team2=team),
-                result__in=['team1', 'team2', 'NR'],
+                result__in=['team1', 'team2', 'draw', 'NR'],
             ).exclude(pk=match.pk)
             won = qs.filter(
                 Q(result='team1', team1=team) | Q(result='team2', team2=team)
@@ -131,8 +142,9 @@ class MatchViewSet(viewsets.ModelViewSet):
             lost = qs.filter(
                 Q(result='team1', team2=team) | Q(result='team2', team1=team)
             ).count()
+            drawn = qs.filter(result='draw').count()
             nr = qs.filter(result='NR').count()
-            return {'played': won + lost + nr, 'won': won, 'lost': lost}
+            return {'played': won + lost + drawn + nr, 'won': won, 'lost': lost, 'drawn': drawn}
 
         def get_h2h():
             if not match.team1 or not match.team2:
@@ -141,7 +153,7 @@ class MatchViewSet(viewsets.ModelViewSet):
                 Match.objects
                 .filter(
                     Q(team1=match.team1, team2=match.team2) | Q(team1=match.team2, team2=match.team1),
-                    result__in=['team1', 'team2', 'NR'],
+                    result__in=['team1', 'team2', 'draw', 'NR'],
                 )
                 .select_related('team1', 'team2')
                 .order_by('-datetime')
@@ -150,6 +162,8 @@ class MatchViewSet(viewsets.ModelViewSet):
             for m in qs:
                 if m.result == 'NR':
                     winner = None
+                elif m.result == 'draw':
+                    winner = 'Draw'
                 elif m.result == 'team1':
                     winner = m.team1.name
                 else:
@@ -161,7 +175,7 @@ class MatchViewSet(viewsets.ModelViewSet):
                 })
             return results
 
-        return Response({
+        data = {
             'team1':         match.team1.name if match.team1 else None,
             'team2':         match.team2.name if match.team2 else None,
             'team1_form':    get_form(match.team1),
@@ -169,7 +183,9 @@ class MatchViewSet(viewsets.ModelViewSet):
             'team1_season':  get_season_stats(match.team1),
             'team2_season':  get_season_stats(match.team2),
             'h2h':           get_h2h(),
-        })
+        }
+        cache.set(cache_key, data, timeout=CACHE_TTL_TEAM_FORM)
+        return Response(data)
 
     @action(detail=True, methods=['get'])
     def selections(self, request, pk=None):

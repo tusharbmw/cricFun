@@ -284,11 +284,13 @@ function FormBadge({ result, opponent, isOpen, onToggle, isRecent }) {
   const styles = {
     W: 'bg-green-100 text-green-700',
     L: 'bg-red-100 text-red-700',
+    D: 'bg-blue-100 text-blue-600',
     N: 'bg-yellow-100 text-yellow-700',
   }
   const recentBorder = {
     W: 'ring-1 ring-green-400',
     L: 'ring-1 ring-red-400',
+    D: 'ring-1 ring-blue-400',
     N: 'ring-1 ring-yellow-400',
   }
   return (
@@ -369,7 +371,7 @@ export default function MatchDetail() {
   const { data: form } = useQuery({
     queryKey: ['match', id, 'team_form'],
     queryFn: () => matchesAPI.teamForm(id).then(r => r.data),
-    enabled: !!match && !isSoccer,
+    enabled: !!match,
     staleTime: 10 * 60 * 1000,
   })
 
@@ -535,7 +537,7 @@ export default function MatchDetail() {
                   <span className="text-sm font-medium text-gray-800">{name}</span>
                   {season && (
                     <span className="text-xs text-gray-400">
-                      {season.played} played · <span className="text-green-600 font-medium">{season.won}W</span> · <span className="text-red-500 font-medium">{season.lost}L</span>
+                      {season.played} played · <span className="text-green-600 font-medium">{season.won}W</span> · <span className="text-red-500 font-medium">{season.lost}L</span>{season.drawn > 0 && <> · <span className="text-blue-500 font-medium">{season.drawn}D</span></>}
                     </span>
                   )}
                 </div>
@@ -543,7 +545,7 @@ export default function MatchDetail() {
               </div>
             ))}
 
-            <p className="text-xs text-gray-400">Tap badge to see opponent · W = Won · L = Lost · N = No Result</p>
+            <p className="text-xs text-gray-400">Tap badge to see opponent · W = Won · L = Lost · D = Draw · N = No Result</p>
 
             {/* Head-to-head */}
             {form.h2h?.length > 0 && (
@@ -553,8 +555,8 @@ export default function MatchDetail() {
                   {form.h2h.map((m, i) => (
                     <div key={i} className="flex items-center justify-between text-xs">
                       <span className="text-gray-400">{m.description}</span>
-                      <span className={`font-medium ${m.winner ? 'text-gray-700' : 'text-gray-400'}`}>
-                        {m.winner ? `${m.winner} won` : 'No result'}
+                      <span className={`font-medium ${m.winner ? (m.winner === 'Draw' ? 'text-blue-500' : 'text-gray-700') : 'text-gray-400'}`}>
+                        {m.winner === 'Draw' ? 'Draw' : m.winner ? `${m.winner} won` : 'No result'}
                       </span>
                     </div>
                   ))}
