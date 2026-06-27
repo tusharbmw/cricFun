@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { matchesAPI } from '@/api/matches'
 import { picksAPI } from '@/api/picks'
 import Spinner from '@/components/ui/Spinner'
@@ -418,8 +418,16 @@ function MatchPickRow({ match, existingPick, stats }) {
   )
 }
 
+function scrollToFirstUnpicked(upcoming, pickMap) {
+  const first = upcoming.find(m => !pickMap[m.id])
+  if (!first) return
+  const el = document.getElementById(`match-${first.id}`)
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 export default function Schedule() {
   const sentinelRef = useRef(null)
+  const [searchParams] = useSearchParams()
   const { currentTournament } = useTournamentStore()
   const tid = currentTournament?.id
 
@@ -467,6 +475,13 @@ export default function Schedule() {
   const pickMap = {}
   activePicks?.forEach(b => { pickMap[b.match] = b })
 
+  // Auto-scroll to first unpicked when arriving via ?unpicked=1
+  useEffect(() => {
+    if (searchParams.get('unpicked') !== '1') return
+    if (!upcoming.length || !activePicks) return
+    scrollToFirstUnpicked(upcoming, pickMap)
+  }, [searchParams, upcoming.length, activePicks])
+
   if (isLoading) return <Spinner />
 
   return (
@@ -474,9 +489,12 @@ export default function Schedule() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-800">Schedule</h1>
         {stats?.missing_picks > 0 && (
-          <span className="badge badge-warning gap-1">
-            ⚠ {stats.missing_picks} missing pick{stats.missing_picks !== 1 ? 's' : ''}
-          </span>
+          <button
+            onClick={() => scrollToFirstUnpicked(upcoming, pickMap)}
+            className="badge badge-warning gap-1 cursor-pointer"
+          >
+            ⚠ {stats.missing_picks} missing pick{stats.missing_picks !== 1 ? 's' : ''} ↓
+          </button>
         )}
       </div>
 
@@ -504,12 +522,13 @@ export default function Schedule() {
         </div>
       ) : (
         upcoming.map(m => (
-          <MatchPickRow
-            key={m.id}
-            match={m}
-            existingPick={pickMap[m.id] ?? null}
-            stats={stats}
-          />
+          <div key={m.id} id={`match-${m.id}`}>
+            <MatchPickRow
+              match={m}
+              existingPick={pickMap[m.id] ?? null}
+              stats={stats}
+            />
+          </div>
         ))
       )}
 

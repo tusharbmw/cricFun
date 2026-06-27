@@ -241,7 +241,7 @@ def send_pick_reminders():
                 body = f'{t1} vs {t2} — pick locks in {label}!'
 
                 if send_push_notification(
-                    sub, title='⏰ Pick Reminder', body=body, url='/schedule',
+                    sub, title='⏰ Pick Reminder', body=body, url=f'/match/{match.id}',
                     tag=f'pick-reminder-{match.id}'
                 ):
                     cache.set(cache_key, 1, timeout=3 * 3600)
