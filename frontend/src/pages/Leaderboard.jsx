@@ -11,6 +11,65 @@ import Spinner from '@/components/ui/Spinner'
 import useTournamentStore from '@/store/tournamentStore'
 
 // ---------------------------------------------------------------------------
+// X-axis label thinning helpers
+// ---------------------------------------------------------------------------
+
+function _stageKey(label) {
+  const prefix = (label ?? '').split(':')[0]
+  return /^M\d+$/.test(prefix) ? 'M' : prefix
+}
+
+function computeShownLabels(n, containerWidth, chartData) {
+  if (n === 0) return new Set()
+  const plotW     = Math.max(100, containerWidth - 60)
+  const maxLabels = Math.max(2, Math.floor(plotW / 46))
+  const labelStep = Math.max(1, Math.ceil((n - 1) / (maxLabels - 1)))
+
+  const shown = new Set()
+  for (let i = 0; i < n; i += labelStep) shown.add(i)
+
+  // Always include the last; drop a near-last step to avoid crowding
+  if (n > 1) {
+    const last = n - 1
+    for (const i of [...shown]) {
+      if (i !== 0 && last - i < labelStep * 0.6) shown.delete(i)
+    }
+    shown.add(last)
+  }
+
+  // Force-show the first match of every non-group-stage round (R32, R16, QF, SF, Final…)
+  if (chartData.length > 0) {
+    let prevStage = null
+    for (let i = 0; i < n; i++) {
+      const stage = _stageKey(chartData[i]?.label ?? '')
+      if (stage !== prevStage) {
+        prevStage = stage
+        if (stage !== 'M') {
+          const tooClose = [...shown].some(s => Math.abs(s - i) < labelStep * 0.6)
+          if (!tooClose) shown.add(i)
+        }
+      }
+    }
+  }
+
+  return shown
+}
+
+function makeXTick(shownLabels) {
+  return function CustomTick({ x, y, payload, index }) {
+    if (!shownLabels.has(index)) return null
+    const anchor = index === 0 ? 'start' : 'end'
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text transform="rotate(-35)" textAnchor={anchor} fontSize={10} fill="#9ca3af" dy={4}>
+          {payload.value}
+        </text>
+      </g>
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Shared empty state
 // ---------------------------------------------------------------------------
 
@@ -64,9 +123,20 @@ function ChartLegend({ allUsers, currentUsername, displayNames, activeUser, onHo
 // ---------------------------------------------------------------------------
 
 function RankHistoryChart({ history, currentUsername, displayNames }) {
-  const [hoveredUser, setHoveredUser] = useState(null)
-  const [pinnedUser, setPinnedUser]   = useState(null)
+  const [hoveredUser, setHoveredUser]       = useState(null)
+  const [pinnedUser, setPinnedUser]         = useState(null)
+  const [containerWidth, setContainerWidth] = useState(300)
   const activeUser = pinnedUser ?? hoveredUser
+
+  // Compute before early return so hooks are always called in the same order
+  const chartData = (history ?? []).map(snap => {
+    const point = { label: snap.label, full_label: snap.full_label }
+    snap.rankings.forEach(r => { point[r.username] = r.rank })
+    return point
+  })
+  const n           = chartData.length
+  const shownLabels = computeShownLabels(n, containerWidth, chartData)
+  const CustomTick  = makeXTick(shownLabels)
 
   if (!history?.length) return <ChartEmptyState />
 
@@ -75,25 +145,13 @@ function RankHistoryChart({ history, currentUsername, displayNames }) {
   )]
   const totalUsers = allUsers.length
 
-  const chartData = history.map(snap => {
-    const point = { label: snap.label, full_label: snap.full_label }
-    snap.rankings.forEach(r => { point[r.username] = r.rank })
-    return point
-  })
-
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4">
       <h2 className="text-sm font-semibold text-gray-700 mb-4">Rank Progression</h2>
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={280} onResize={(w) => setContainerWidth(w)}>
         <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 48, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis
-            dataKey="label"
-            tick={{ fontSize: 10, fill: '#9ca3af' }}
-            interval={0}
-            angle={-35}
-            textAnchor="end"
-          />
+          <XAxis dataKey="label" interval={0} tick={CustomTick} />
           <YAxis
             reversed
             domain={[1, totalUsers]}
@@ -108,9 +166,9 @@ function RankHistoryChart({ history, currentUsername, displayNames }) {
             contentStyle={{ fontSize: 12 }}
           />
           {allUsers.map(username => {
-            const isMe = username === currentUsername
+            const isMe     = username === currentUsername
             const isActive = activeUser === username
-            const dimmed = activeUser && !isActive
+            const dimmed   = activeUser && !isActive
             return (
               <Line
                 key={username}
@@ -145,20 +203,15 @@ function RankHistoryChart({ history, currentUsername, displayNames }) {
 // ---------------------------------------------------------------------------
 
 function PointsProgressionChart({ history, currentUsername, displayNames }) {
-  const [hoveredUser, setHoveredUser] = useState(null)
-  const [pinnedUser, setPinnedUser]   = useState(null)
+  const [hoveredUser, setHoveredUser]       = useState(null)
+  const [pinnedUser, setPinnedUser]         = useState(null)
+  const [containerWidth, setContainerWidth] = useState(300)
   const activeUser = pinnedUser ?? hoveredUser
-
-  if (!history?.length) return <ChartEmptyState />
-
-  const allUsers = [...new Set(
-    history.flatMap(snap => snap.rankings.map(r => r.username))
-  )]
 
   const DQ_SCORE = -999
 
-  // Compute scale from non-DQ values so disqualified players don't distort the axis
-  const allTotals = history.flatMap(snap =>
+  // Compute before early return so hooks are always called in the same order
+  const allTotals = (history ?? []).flatMap(snap =>
     snap.rankings.map(r => r.total).filter(t => t !== DQ_SCORE)
   )
   const minVal = allTotals.length ? Math.min(...allTotals) : 0
@@ -167,25 +220,28 @@ function PointsProgressionChart({ history, currentUsername, displayNames }) {
   // DQ renders 20% below the chart floor so it's visually at the bottom
   const dqY    = Math.round(minVal - range * 0.2)
 
-  const chartData = history.map(snap => {
+  const chartData = (history ?? []).map(snap => {
     const point = { label: snap.label, full_label: snap.full_label }
     snap.rankings.forEach(r => { point[r.username] = r.total === DQ_SCORE ? dqY : r.total })
     return point
   })
+  const n           = chartData.length
+  const shownLabels = computeShownLabels(n, containerWidth, chartData)
+  const CustomTick  = makeXTick(shownLabels)
+
+  if (!history?.length) return <ChartEmptyState />
+
+  const allUsers = [...new Set(
+    history.flatMap(snap => snap.rankings.map(r => r.username))
+  )]
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4">
       <h2 className="text-sm font-semibold text-gray-700 mb-4">Points Progression</h2>
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={280} onResize={(w) => setContainerWidth(w)}>
         <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 48, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis
-            dataKey="label"
-            tick={{ fontSize: 10, fill: '#9ca3af' }}
-            interval={0}
-            angle={-35}
-            textAnchor="end"
-          />
+          <XAxis dataKey="label" interval={0} tick={CustomTick} />
           <YAxis
             domain={[dqY, maxVal + Math.round(range * 0.05)]}
             allowDecimals={false}
@@ -199,9 +255,9 @@ function PointsProgressionChart({ history, currentUsername, displayNames }) {
             contentStyle={{ fontSize: 12 }}
           />
           {allUsers.map(username => {
-            const isMe = username === currentUsername
+            const isMe     = username === currentUsername
             const isActive = activeUser === username
-            const dimmed = activeUser && !isActive
+            const dimmed   = activeUser && !isActive
             return (
               <Line
                 key={username}
