@@ -458,6 +458,7 @@ export default function MatchDetail() {
           odds={match.odds}
           team1Name={match.team1?.name}
           team2Name={match.team2?.name}
+          playoff={match.playoff}
         />
       )}
 
