@@ -362,7 +362,7 @@ export default function HomeMatchCard({ match, pick, stats, isDragTarget, onDrag
 
         {/* Odds bar */}
         {match.odds && match.result === 'TBD' && (
-          <OddsBarCompact odds={match.odds} team1Name={match.team1?.name} team2Name={match.team2?.name} />
+          <OddsBarCompact odds={match.odds} team1Name={match.team1?.name} team2Name={match.team2?.name} playoff={match.playoff} />
         )}
 
         {/* Pick distribution */}

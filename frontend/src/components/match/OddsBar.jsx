@@ -3,8 +3,29 @@
  * Used in Schedule (compact) and MatchDetail (full).
  */
 
-function impliedProbs(odds) {
+function impliedProbs(odds, playoff = false) {
   if (!odds) return null
+
+  // For playoff matches use draw_no_bet odds if available, otherwise
+  // re-normalise h2h across team1/team2 only (drop draw).
+  if (playoff) {
+    if (odds.team1_dnb && odds.team2_dnb && odds.team1_dnb > 1 && odds.team2_dnb > 1) {
+      const r1 = 1 / odds.team1_dnb
+      const r2 = 1 / odds.team2_dnb
+      const t  = r1 + r2
+      return { team1: Math.round((r1 / t) * 100), team2: Math.round((r2 / t) * 100) }
+    }
+    // Fallback: re-normalise h2h without draw
+    const entries = [
+      { key: 'team1', val: odds.team1 },
+      { key: 'team2', val: odds.team2 },
+    ].filter(e => e.val && e.val > 1)
+    if (entries.length < 2) return null
+    const raws = entries.map(e => ({ key: e.key, raw: 1 / e.val }))
+    const total = raws.reduce((s, e) => s + e.raw, 0)
+    return Object.fromEntries(raws.map(e => [e.key, Math.round((e.raw / total) * 100)]))
+  }
+
   const entries = [
     { key: 'team1', val: odds.team1 },
     { key: 'draw',  val: odds.draw  },
@@ -20,8 +41,8 @@ function impliedProbs(odds) {
 
 // ─── Compact bar for Schedule ────────────────────────────────────────────────
 
-export function OddsBarCompact({ odds, team1Name, team2Name }) {
-  const probs = impliedProbs(odds)
+export function OddsBarCompact({ odds, team1Name, team2Name, playoff = false }) {
+  const probs = impliedProbs(odds, playoff)
   if (!probs) return null
 
   const segments = [
@@ -75,8 +96,8 @@ function ProbBar({ label, pct, color, bgColor }) {
   )
 }
 
-export function OddsCardFull({ odds, team1Name, team2Name }) {
-  const probs = impliedProbs(odds)
+export function OddsCardFull({ odds, team1Name, team2Name, playoff = false }) {
+  const probs = impliedProbs(odds, playoff)
   if (!probs || !odds) return null
 
   const hasTotals = odds.total_line != null && (odds.over_odds || odds.under_odds)
@@ -103,7 +124,7 @@ export function OddsCardFull({ odds, team1Name, team2Name }) {
 
         {/* Win probability */}
         <div className="space-y-2">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Win Probability</p>
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{playoff ? 'To Advance' : 'Win Probability'}</p>
           <ProbBar label={team1Name} pct={probs.team1} color="#93C5FD" bgColor="#1e3a5f" />
           {probs.draw != null && (
             <ProbBar label="Draw" pct={probs.draw} color="#FCD34D" bgColor="#7c5005" />

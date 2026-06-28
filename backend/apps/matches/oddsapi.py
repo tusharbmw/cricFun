@@ -121,6 +121,29 @@ def _consensus_h2h(bookmakers, home_team, away_team):
     return result
 
 
+def _consensus_dnb(bookmakers, home_team, away_team):
+    """Average draw-no-bet decimal odds across bookmakers."""
+    home_prices, away_prices = [], []
+    for bm in bookmakers:
+        for market in bm.get('markets', []):
+            if market['key'] != 'draw_no_bet':
+                continue
+            for outcome in market['outcomes']:
+                n = _normalize_name(outcome['name'])
+                p = outcome['price']
+                if n == _normalize_name(home_team):
+                    home_prices.append(p)
+                elif n == _normalize_name(away_team):
+                    away_prices.append(p)
+
+    result = {}
+    if home_prices:
+        result['home'] = round(statistics.mean(home_prices), 3)
+    if away_prices:
+        result['away'] = round(statistics.mean(away_prices), 3)
+    return result
+
+
 def _consensus_totals(bookmakers):
     """Find most common line value and average odds for that line."""
     line_data = {}  # line -> {'over': [], 'under': []}
@@ -269,6 +292,7 @@ def fetch_and_store_odds():
             away_team_name = event['away_team']
 
             h2h = _consensus_h2h(bookmakers, home_team_name, away_team_name)
+            dnb = _consensus_dnb(bookmakers, home_team_name, away_team_name)
             totals = _consensus_totals(bookmakers)
             spread = _consensus_spread(bookmakers, home_team_name)
 
@@ -282,12 +306,16 @@ def fetch_and_store_odds():
                     'team1': h2h.get('home'),
                     'draw': h2h.get('draw'),
                     'team2': h2h.get('away'),
+                    'team1_dnb': dnb.get('home'),
+                    'team2_dnb': dnb.get('away'),
                 }
             else:
                 odds_data = {
                     'team1': h2h.get('away'),
                     'draw': h2h.get('home'),
                     'team2': h2h.get('away'),
+                    'team1_dnb': dnb.get('away'),
+                    'team2_dnb': dnb.get('home'),
                 }
                 # When home is team2, swap favored side too
                 if spread.get('spread_favored') == 'team1':
