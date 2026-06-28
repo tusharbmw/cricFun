@@ -332,6 +332,14 @@ def fetch_football_matches(tournament_id=None):
                     if obj.result != 'TBD':
                         continue  # live/completed matches are owned by sync_football_scores
                     changed = [k for k, v in fields.items() if getattr(obj, k) != v]
+                    # Don't let a null API response (mapped to TBD) overwrite a real
+                    # team name we already have — the API sometimes resets knockout
+                    # bracket slots to null while the group stage is still in progress.
+                    for tf in ('team1', 'team2'):
+                        if tf in changed and fields[tf].name == 'TBD':
+                            existing = getattr(obj, tf)
+                            if existing and existing.name != 'TBD':
+                                changed.remove(tf)
                     if changed:
                         for k in changed:
                             setattr(obj, k, fields[k])
