@@ -55,7 +55,7 @@ function computeShownLabels(n, containerWidth, chartData) {
   return shown
 }
 
-function makeXTick(shownLabels, n) {
+function makeXTick(shownLabels) {
   return function CustomTick({ x, y, payload, index }) {
     if (!shownLabels.has(index)) return null
     const anchor = index === 0 ? 'start' : 'end'
@@ -136,7 +136,7 @@ function RankHistoryChart({ history, currentUsername, displayNames }) {
   })
   const n           = chartData.length
   const shownLabels = computeShownLabels(n, containerWidth, chartData)
-  const CustomTick  = makeXTick(shownLabels, n)
+  const CustomTick  = makeXTick(shownLabels)
 
   if (!history?.length) return <ChartEmptyState />
 
@@ -177,7 +177,7 @@ function RankHistoryChart({ history, currentUsername, displayNames }) {
                 stroke={isMe ? '#2563eb' : '#94a3b8'}
                 strokeWidth={isActive ? (isMe ? 3 : 2.5) : (isMe ? 2.5 : 1)}
                 strokeOpacity={dimmed ? 0.1 : 1}
-                dot={isActive || isMe ? { r: dense ? 2 : 3, fill: isMe ? '#2563eb' : '#94a3b8' } : false}
+                dot={isActive || isMe ? { r: 3, fill: isMe ? '#2563eb' : '#94a3b8' } : false}
                 activeDot={{ r: isActive || isMe ? 5 : 3 }}
                 connectNulls
               />
@@ -227,7 +227,7 @@ function PointsProgressionChart({ history, currentUsername, displayNames }) {
   })
   const n           = chartData.length
   const shownLabels = computeShownLabels(n, containerWidth, chartData)
-  const CustomTick  = makeXTick(shownLabels, n)
+  const CustomTick  = makeXTick(shownLabels)
 
   if (!history?.length) return <ChartEmptyState />
 
@@ -266,7 +266,7 @@ function PointsProgressionChart({ history, currentUsername, displayNames }) {
                 stroke={isMe ? '#2563eb' : '#94a3b8'}
                 strokeWidth={isActive ? (isMe ? 3 : 2.5) : (isMe ? 2.5 : 1)}
                 strokeOpacity={dimmed ? 0.1 : 1}
-                dot={isActive || isMe ? { r: dense ? 2 : 3, fill: isMe ? '#2563eb' : '#94a3b8' } : false}
+                dot={isActive || isMe ? { r: 3, fill: isMe ? '#2563eb' : '#94a3b8' } : false}
                 activeDot={{ r: isActive || isMe ? 5 : 3 }}
                 connectNulls
               />
