@@ -107,8 +107,12 @@ def calculate_scores(upto_match_id=None, tournament=None):
             if mr.result == 'draw':
                 bp = mr.match_points * (mr.home_score + mr.away_score + 1)
             else:
-                goal_diff = abs(mr.home_score - mr.away_score)
-                # min 1 so shootout (0 goal diff in regular play) still awards points
+                # Penalty shootouts always count as 1-goal difference regardless
+                # of the cumulative fullTime score (which includes penalty kicks).
+                if mr.duration == 'PENALTY_SHOOTOUT':
+                    goal_diff = 1
+                else:
+                    goal_diff = abs(mr.home_score - mr.away_score)
                 bp = mr.match_points * max(1, min(goal_diff, 3))
         else:
             bp = mr.match_points
