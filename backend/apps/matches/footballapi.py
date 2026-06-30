@@ -50,7 +50,7 @@ _KNOCKOUT_STAGES = frozenset({
 
 # ── Pure mapping functions ────────────────────────────────────────────────────
 
-def map_status(status: str, winner: str | None) -> str | None:
+def map_status(status: str, winner: str | None, home_score=None, away_score=None) -> str | None:
     """Map API status + winner → internal Match.result value, or None to skip."""
     if status in ('SCHEDULED', 'TIMED'):
         return 'TBD'
@@ -63,7 +63,10 @@ def map_status(status: str, winner: str | None) -> str | None:
             return 'team2'
         if winner == 'DRAW':
             return 'draw'
-        # FINISHED with null winner — API still processing, skip update
+        # winner null — fall back to fullTime scores when available.
+        # Covers penalty shootouts where some providers omit the winner field.
+        if home_score is not None and away_score is not None and home_score != away_score:
+            return 'team1' if home_score > away_score else 'team2'
         return None
     if status == 'POSTPONED':
         return 'DLD'
