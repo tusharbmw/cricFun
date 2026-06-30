@@ -314,7 +314,7 @@ def fetch_football_matches(tournament_id=None):
                     tournament=tournament,
                     description=map_stage(stage, group),
                     datetime=match_dt,
-                    result=map_status(status, winner, full_time.get('home'), full_time.get('away')),
+                    result=map_status(status, winner, full_time.get('home'), full_time.get('away'), playoff=map_playoff(stage)),
                     match_points=map_points(stage),
                     playoff=map_playoff(stage),
                     home_score=full_time.get('home'),
@@ -407,7 +407,7 @@ def sync_football_scores():
                 score = m.get('score') or {}
                 full_time = score.get('fullTime') or {}
                 api_status   = m.get('status', '')
-                new_result   = map_status(api_status, score.get('winner'), full_time.get('home'), full_time.get('away'))
+                new_result   = map_status(api_status, score.get('winner'), full_time.get('home'), full_time.get('away'), playoff=match.playoff)
                 if new_result is None:
                     continue  # FINISHED with null winner and no score fallback — skip
                 new_home     = full_time.get('home')

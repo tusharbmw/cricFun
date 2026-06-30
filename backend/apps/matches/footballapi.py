@@ -50,7 +50,7 @@ _KNOCKOUT_STAGES = frozenset({
 
 # ── Pure mapping functions ────────────────────────────────────────────────────
 
-def map_status(status: str, winner: str | None, home_score=None, away_score=None) -> str | None:
+def map_status(status: str, winner: str | None, home_score=None, away_score=None, playoff=False) -> str | None:
     """Map API status + winner → internal Match.result value, or None to skip."""
     if status in ('SCHEDULED', 'TIMED'):
         return 'TBD'
@@ -62,7 +62,10 @@ def map_status(status: str, winner: str | None, home_score=None, away_score=None
         if winner == 'AWAY_TEAM':
             return 'team2'
         if winner == 'DRAW':
-            return 'draw'
+            # Playoff matches cannot end in a draw — a DRAW winner at the end of
+            # extra time means the match is heading to a penalty shootout.
+            # Keep it as in-progress until we have a definitive winner.
+            return 'IP' if playoff else 'draw'
         # winner null — fall back to fullTime scores when available.
         # Covers penalty shootouts where some providers omit the winner field.
         if home_score is not None and away_score is not None and home_score != away_score:
